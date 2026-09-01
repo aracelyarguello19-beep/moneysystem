@@ -1,0 +1,32 @@
+# Tech Stack
+
+Esta es la selección definitiva de tecnología para todo el proyecto. Todo desarrollo debe usar exactamente estas versiones (o el rango semver indicado) como única fuente de verdad.
+
+## Technology Stack Table
+
+| Category | Technology | Version | Purpose | Rationale |
+|---|---|---|---|---|
+| Frontend Language | TypeScript | ^5.7 | Lenguaje de toda la UI | Type-safety compartido de extremo a extremo con Server Actions y `packages/domain`; requisito implícito para el patrón de contrato-por-tipo. |
+| Frontend Framework | Next.js (App Router) | ^15.1 | Framework fullstack — UI, Server Actions, routing, RSC | Preset técnico ya fijado en el PRD; App Router + Server Actions es exactamente el "Service Architecture" que el PRD especifica. |
+| UI Component Library | shadcn/ui (sobre Radix UI) | latest (copy-in, sin versión de paquete) | Componentes base accesibles (form, dialog, select, table) | No es una dependencia de runtime tradicional — el código se copia al repo, así que no hay versión que fije un límite de personalización. Da accesibilidad (WCAG AA, ver UI Design Goals) y composability sin diseñar un design system desde cero; compatible con Tailwind y con la dirección de branding validada (acento esmeralda, serif + monoespaciada). |
+| State Management | Zustand | ^5.0 | Estado de UI global efímero: negocio activo, ámbito Laboral/Personal | Fijado por el PRD (Technical Assumptions). Ideal para el selector de negocio activo (FR5) — estado global simple, sin boilerplate de reducers, persistido en `localStorage` para recordar la última selección. |
+| Backend Language | TypeScript | ^5.7 | Lenguaje de Server Actions, Route Handlers y `packages/domain`/`packages/database` | Mismo lenguaje que el frontend — requisito para el patrón de tipos compartidos (Coding Standards). |
+| Backend Framework | Next.js Server Actions + Route Handlers | ^15.1 (mismo paquete que frontend) | Capa de mutación y endpoints server-side | No hay backend separado — Server Actions son el "backend" de este monolito modular. Route Handlers solo para casos no cubiertos por Server Actions (health check público de Story 1.1). |
+| API Style | Server Actions (RPC tipado) + REST mínimo para health check | — | Contrato de mutación entre UI y servidor | Ver "API Specification" — se documenta por qué no se eligió REST/GraphQL/tRPC como estilo primario. |
+| Database | PostgreSQL (Supabase) | 17.x | Almacenamiento transaccional ACID, RLS | Fijado por el PRD (NFR8); Supabase da RLS nativo con `auth.uid()`, requisito central del diseño de aislamiento. |
+| ORM | Prisma | ^6.2 | Schema-as-code, migraciones, cliente tipado, motor de queries | Type-safety con la DB al mismo nivel que TypeScript en el resto del stack; soporta transacciones interactivas (`$transaction`) necesarias para el patrón `SET LOCAL` + query de RLS compuesta. |
+| Cache | React Query (cache de cliente) — sin cache de servidor dedicado | ^5.62 | Cache de estado de servidor en el navegador (dashboards, listados) | El volumen bajo-medio del brief no justifica una capa de cache de servidor (Redis) para el MVP; Next.js ya cachea RSC/fetches donde aplica. Se revisita si el volumen crece (ver Post-MVP). |
+| File Storage | N/A (no requerido en MVP) | — | — | El PRD no pide adjuntar comprobantes/archivos en el MVP; se documenta explícitamente para que @dev no lo asuma. Si se agrega en Fase 2, Supabase Storage es la extensión natural (misma plataforma, mismo RLS). |
+| Authentication | Supabase Auth (GoTrue) vía `@supabase/ssr` | latest | Registro/login individual por cuenta, sesión en cookies httpOnly | Es la pieza que hace posible `auth.uid()` en las políticas RLS — no es solo "conveniente", es un requisito estructural del mecanismo de aislamiento elegido (NFR1). |
+| Frontend Testing | Vitest + React Testing Library | ^2.1 / ^16.1 | Unit/component tests de UI | Vitest comparte configuración/ESM con el resto del monorepo (un solo test runner para todo, ver Backend Testing) y es más rápido que Jest bajo Next.js 15. |
+| Backend Testing | Vitest | ^2.1 | Unit tests de `packages/domain`; integration tests de `packages/database` contra Postgres real | Mismo runner que frontend — reduce superficie de configuración. Los tests de aislamiento (NFR1/NFR2) corren contra una instancia Postgres real con RLS activada, nunca mockeada (ver Testing Strategy — el propio PRD lo exige explícitamente). |
+| E2E Testing | Playwright | ^1.49 | Flujos críticos de usuario de extremo a extremo | Estándar de facto para Next.js App Router; soporta multi-tab/multi-sesión, útil para verificar aislamiento entre cuentas desde la UI. |
+| Build Tool | Next.js CLI (Turbopack) | incluido en Next.js ^15.1 | Build y dev server | Turbopack es el default de Next 15 — sin configuración adicional. |
+| Bundler | Turbopack | incluido en Next.js ^15.1 | Bundling de dev y build | Ídem — parte del framework, no una elección independiente. |
+| IaC Tool | N/A (MVP) — configuración vía dashboards de Vercel/Supabase + variables de entorno versionadas en `.env.example` | — | — | A este tamaño (2 servicios gestionados, sin infraestructura propia) una herramienta de IaC (Terraform/Pulumi) agrega ceremonia sin beneficio; se documenta como decisión explícita, no como omisión. Revisitar si se agregan más servicios gestionados. |
+| CI/CD | GitHub Actions + Vercel Git Integration | — | Lint, typecheck, tests en cada PR; deploy automático (preview por PR, producción en `main`) | GitHub Actions cubre las validaciones de calidad (lint/typecheck/test) antes de que el código llegue a Vercel; el propio deploy lo maneja el Git Integration nativo de Vercel — no hay que mantener scripts de deploy a mano. |
+| Monitoring | Vercel Analytics (Web Vitals) + Sentry (errores) | Sentry ^8 | Observabilidad de performance y errores en producción | Un sistema financiero no puede fallar en silencio — Sentry captura excepciones no manejadas en Server Actions y en el cliente con contexto de usuario (sin PII sensible, ver Security). |
+| Logging | `console.*` estructurado (JSON) capturado por Vercel Log Drains | — | Logs de aplicación | El volumen del MVP no justifica un stack de logging dedicado (Pino + Loki/Datadog); Vercel ya persiste y permite buscar logs de función. Revisitar si el volumen de soporte crece. |
+| CSS Framework | Tailwind CSS | ^4.0 | Estilos utilitarios, tokens de diseño (acento esmeralda) | Fijado por el PRD (Technical Assumptions); base natural para shadcn/ui. |
+
+---

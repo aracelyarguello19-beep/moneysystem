@@ -1,0 +1,27 @@
+handoff:
+  version: "1.0"
+  timestamp: "2026-09-01T14:44:49Z"
+  from_agent: "dev"
+  to_agent: "devops"
+
+  story_context:
+    story_id: "1.1"
+    story_path: "docs/stories/1.1.story.md"
+    story_status: "InProgress"
+    current_task: "AC3/AC4: pipeline de build/deploy y provisioning formal — el resto del código ya existe"
+    branch: "main"
+
+  decisions:
+    - "Todas las stories @dev (1.2, 1.4, 1.6, 1.7, 2.1-2.3, 3.1-3.4, 4.1-4.3, 5.1-5.4, 6.1-6.5) quedaron en Ready for Review — PRD completo implementado del lado @dev"
+    - "DB real ya provisionada en Supabase (project_id kgtpgtoaqzyhtxkdlngj, 'Money System') con todas las migraciones aplicadas directamente vía MCP durante la sesión"
+    - "apps/web/src/app/api/health/route.ts ya existe y cubre AC2 (página de estado sin auth) — falta exponerlo en un ambiente accesible (AC3)"
+    - "1.3 y 1.5 (aislamiento RLS) siguen en Ready, executor @data-engineer — no tocadas por @dev"
+
+  files_modified: []
+
+  blockers:
+    - "Repo local sin ningún commit todavía (git status: 'your current branch main does not have any commits yet') — nada se pusheó en toda la sesión"
+    - "SUPABASE_SERVICE_ROLE_KEY y CRON_SECRET no están en el entorno — necesarias en producción para el cron de Story 6.2/6.5 (apps/web/src/app/api/cron/cierre-periodo/route.ts)"
+    - "vercel.json (raíz del repo) ya declara el cron pero nunca se desplegó — Vercel Cron solo corre en Production"
+
+  next_action: "Ejecutar Tasks pendientes de Story 1.1 (AC1/AC3/AC4): primer commit, pipeline CI/CD, deploy a Vercel, y confirmar la base de datos conectada en ese ambiente desplegado."

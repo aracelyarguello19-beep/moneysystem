@@ -1,0 +1,468 @@
+// Schema mínimo de Story 1.1 — los modelos se agregan en las stories siguientes
+// (Story 1.2 en adelante), uno por entidad, siguiendo docs/architecture/data-models.md
+// y docs/architecture/database-schema.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Story 1.2 — extiende metadata de aplicación sobre auth.users de Supabase
+// (relación 1:1, id compartido). El FK real a auth.users(id) y las políticas
+// RLS se agregan a mano en la migración generada, porque auth.users no es
+// una tabla modelada por Prisma (pertenece al schema "auth" de Supabase).
+// [Source: architecture/data-models.md#Cuenta, architecture/database-schema.md]
+model Cuenta {
+  id        String   @id @db.Uuid
+  email     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  negocios           Negocio[]
+  monedas            Moneda[]
+  tiposGasto         TipoGasto[]
+  items              Item[]
+  compras            Compra[]
+  ventas             Venta[]
+  cuentasPorCobrar   CuentaPorCobrar[]
+  gastos             Gasto[]
+  cuentasFinancieras CuentaFinanciera[]
+  tasasCambio        TasaCambio[]
+  retirosUtilidad    RetiroUtilidad[]
+  reservaFinanciera  ReservaFinanciera?
+
+  @@map("cuentas")
+}
+
+// Story 1.4 — entidad intermedia obligatoria: toda tabla transaccional o de
+// catálogo del módulo Laboral referencia un negocioId. RLS filtra por
+// cuenta_id = auth.uid() (mismo patrón que `cuentas`, reforzado en Story 1.5).
+// [Source: architecture/data-models.md#Negocio, architecture/database-schema.md]
+model Negocio {
+  id         String    @id @default(uuid()) @db.Uuid
+  cuentaId   String    @map("cuenta_id") @db.Uuid
+  nombre     String
+  estado     String    @default("ACTIVO")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz
+
+  cuenta             Cuenta             @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  monedas            Moneda[]
+  tiposGasto         TipoGasto[]
+  items              Item[]
+  compras            Compra[]
+  ventas             Venta[]
+  cuentasPorCobrar   CuentaPorCobrar[]
+  gastos             Gasto[]
+  cuentasFinancieras CuentaFinanciera[]
+  retirosUtilidad    RetiroUtilidad[]
+  reglaRetiro        ReglaRetiro?
+
+  @@map("negocios")
+}
+
+// Story 1.6 — catálogo de monedas por negocio y Personal. El ámbito Personal
+// reutiliza esta misma tabla con negocioId = null (chk_moneda_ambito en la
+// migración exige la correspondencia). Los índices únicos parciales
+// (uq_moneda_laboral, uq_moneda_personal) y la policy RLS compuesta
+// cuenta+negocio se definen a mano en la migración: Prisma no modela índices
+// únicos parciales (`where` en `@@unique`).
+// [Source: architecture/data-models.md#Moneda, architecture/database-schema.md]
+model Moneda {
+  id        String   @id @default(uuid()) @db.Uuid
+  cuentaId  String   @map("cuenta_id") @db.Uuid
+  negocioId String?  @map("negocio_id") @db.Uuid
+  ambito    String
+  codigo    String
+  nombre    String
+  esBase    Boolean  @default(false) @map("es_base")
+  activa    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cuenta             Cuenta             @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  negocio            Negocio?           @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  items              Item[]
+  compras            Compra[]
+  ventas             Venta[]
+  gastos             Gasto[]
+  cuentasFinancieras CuentaFinanciera[]
+  tasasCambio        TasaCambio[]
+
+  @@map("monedas")
+}
+
+// Story 1.7 — mismo patrón que `Moneda`: el ámbito Personal reutiliza esta
+// tabla con negocioId = null. `chk_tipo_gasto_ambito` (solo en la migración,
+// Prisma no modela check constraints multi-columna condicionales) exige que
+// `clasificacion` sea coherente con `ambito` (OPERATIVO/FINANCIERO en
+// LABORAL; FIJO/VARIABLE/FINANCIERO en PERSONAL) — la misma regla que valida
+// `crearTipoGastoSchema` en `packages/domain`, doble barrera.
+// [Source: architecture/data-models.md#TipoGasto, architecture/database-schema.md]
+model TipoGasto {
+  id            String   @id @default(uuid()) @db.Uuid
+  cuentaId      String   @map("cuenta_id") @db.Uuid
+  negocioId     String?  @map("negocio_id") @db.Uuid
+  ambito        String
+  nombre        String
+  clasificacion String
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cuenta  Cuenta   @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  negocio Negocio? @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  gastos  Gasto[]
+
+  @@map("tipos_gasto")
+}
+
+// Story 2.1 — ítems vendibles (Producto/Servicio) del negocio activo. A
+// diferencia de Moneda/TipoGasto, Item es exclusivamente Laboral (no
+// reutiliza esta tabla para Personal, por eso no tiene columna `ambito` ni
+// `negocioId` nullable). Primer modelo que usa `Decimal` para montos —
+// `packages/domain` los serializa como `string`, nunca `number`.
+// `chk_item_servicio_sin_stock` (solo en la migración) refuerza a nivel de
+// DB que un Servicio nunca tenga stock, junto al schema Zod.
+// [Source: architecture/data-models.md#Item, architecture/database-schema.md]
+model Item {
+  id               String   @id @default(uuid()) @db.Uuid
+  negocioId        String   @map("negocio_id") @db.Uuid
+  cuentaId         String   @map("cuenta_id") @db.Uuid
+  tipo             String
+  nombre           String
+  precioVenta      Decimal  @map("precio_venta") @db.Decimal(18, 4)
+  monedaId         String   @map("moneda_id") @db.Uuid
+  costoCompra      Decimal? @map("costo_compra") @db.Decimal(18, 4)
+  stockActual      Decimal  @default(0) @map("stock_actual") @db.Decimal(18, 4)
+  tieneMovimientos Boolean  @default(false) @map("tiene_movimientos")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  negocio    Negocio     @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  cuenta     Cuenta      @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  moneda     Moneda      @relation(fields: [monedaId], references: [id])
+  compras    Compra[]
+  ventaItems VentaItem[]
+
+  @@map("items")
+}
+
+// Story 2.2 — registro de compras de mercadería. `cuentaFinancieraId` y
+// `tasaCambioId` son columnas UUID simples SIN foreign key: sus tablas
+// (`cuentas_financieras` de Story 4.3, `tasas_cambio` de Story 5.3) todavía
+// no existen. Deuda técnica documentada explícitamente: cuando esas stories
+// creen sus tablas, agregar las FKs vía `ALTER TABLE compras ADD CONSTRAINT
+// ...` en una migración de esa misma story — no inventarlas acá adelantando
+// un diseño que esas stories todavía no definieron (Article IV, No
+// Invention). El efecto de la compra sobre saldo de cuenta financiera /
+// deuda de tarjeta (AC3/AC4) tampoco se implementa todavía por el mismo
+// motivo — ver Completion Notes de Story 2.2.
+// [Source: architecture/data-models.md#Compra, architecture/database-schema.md]
+model Compra {
+  id                 String   @id @default(uuid()) @db.Uuid
+  negocioId          String   @map("negocio_id") @db.Uuid
+  cuentaId           String   @map("cuenta_id") @db.Uuid
+  itemId             String   @map("item_id") @db.Uuid
+  costoUnitario      Decimal  @map("costo_unitario") @db.Decimal(18, 4)
+  cantidad           Decimal  @db.Decimal(18, 4)
+  fecha              DateTime @default(now()) @db.Date
+  proveedor          String?
+  formaPago          String   @map("forma_pago")
+  cuentaFinancieraId String?  @map("cuenta_financiera_id") @db.Uuid
+  monedaId           String   @map("moneda_id") @db.Uuid
+  tasaCambioId       String?  @map("tasa_cambio_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  negocio          Negocio           @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  cuenta           Cuenta            @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  item             Item              @relation(fields: [itemId], references: [id])
+  moneda           Moneda            @relation(fields: [monedaId], references: [id])
+  cuentaFinanciera CuentaFinanciera? @relation(fields: [cuentaFinancieraId], references: [id])
+  tasaCambio       TasaCambio?       @relation(fields: [tasaCambioId], references: [id])
+
+  @@map("compras")
+}
+
+// Story 3.1 — registro de ventas. Mismo criterio de deuda técnica que
+// `Compra` (Story 2.2): `cuentaFinancieraId`/`tasaCambioId` sin FK todavía
+// (Story 4.3/5.3 no existen). `CuentaPorCobrar` (Story 3.4) y
+// `MovimientoCuenta`/`MovimientoTarjeta` (Epic 4) tampoco existen — el
+// efecto de la venta sobre saldo/deuda/cuenta por cobrar NO está
+// implementado todavía, ver Completion Notes de Story 3.1.
+// [Source: architecture/data-models.md#Venta, architecture/database-schema.md]
+model Venta {
+  id                 String   @id @default(uuid()) @db.Uuid
+  negocioId          String   @map("negocio_id") @db.Uuid
+  cuentaId           String   @map("cuenta_id") @db.Uuid
+  cliente            String?
+  fecha              DateTime @default(now()) @db.Date
+  formaCobro         String   @map("forma_cobro")
+  impuesto           Decimal  @default(0) @db.Decimal(18, 4)
+  estado             String   @default("ACTIVA")
+  cuentaFinancieraId String?  @map("cuenta_financiera_id") @db.Uuid
+  monedaId           String   @map("moneda_id") @db.Uuid
+  tasaCambioId       String?  @map("tasa_cambio_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  negocio          Negocio           @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  cuenta           Cuenta            @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  moneda           Moneda            @relation(fields: [monedaId], references: [id])
+  cuentaFinanciera CuentaFinanciera? @relation(fields: [cuentaFinancieraId], references: [id])
+  tasaCambio       TasaCambio?       @relation(fields: [tasaCambioId], references: [id])
+  ventaItems       VentaItem[]
+  cuentasPorCobrar CuentaPorCobrar[]
+
+  @@map("ventas")
+}
+
+// `VentaItem` no tiene `cuenta_id`/`negocio_id` propios — la policy RLS se
+// resuelve vía `exists(...)` contra `ventas` (mismo patrón documentado en
+// Story 1.3/1.5 para tablas sin FK directo a cuenta/negocio).
+model VentaItem {
+  id               String   @id @default(uuid()) @db.Uuid
+  ventaId          String   @map("venta_id") @db.Uuid
+  itemId           String   @map("item_id") @db.Uuid
+  cantidad         Decimal? @db.Decimal(18, 4)
+  precioUnitario   Decimal  @map("precio_unitario") @db.Decimal(18, 4)
+  costoServicio    Decimal? @map("costo_servicio") @db.Decimal(18, 4)
+  cantidadDevuelta Decimal  @default(0) @map("cantidad_devuelta") @db.Decimal(18, 4)
+
+  venta Venta @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  item  Item  @relation(fields: [itemId], references: [id])
+
+  @@map("venta_items")
+}
+
+// Story 3.4 — expone el listado y los pagos de cuentas por cobrar. No las
+// crea: Story 3.1 las genera cuando `formaCobro === 'CREDITO_CLIENTE'` y
+// Story 3.3 las ajusta ante cancelación/devolución (ambas se retomaron en
+// esta misma story para completar ese wiring, ver Completion Notes).
+// `pagos_cxc` sigue el mismo patrón de RLS vía `exists(...)` que
+// `venta_items` — no tiene cuenta_id/negocio_id propio.
+// [Source: architecture/data-models.md#CuentaPorCobrar / PagoCxC, architecture/database-schema.md]
+model CuentaPorCobrar {
+  id            String   @id @default(uuid()) @db.Uuid
+  negocioId     String   @map("negocio_id") @db.Uuid
+  cuentaId      String   @map("cuenta_id") @db.Uuid
+  ventaId       String   @unique @map("venta_id") @db.Uuid
+  cliente       String
+  montoOriginal Decimal  @map("monto_original") @db.Decimal(18, 4)
+  montoPagado   Decimal  @default(0) @map("monto_pagado") @db.Decimal(18, 4)
+  estado        String   @default("PENDIENTE")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  negocio Negocio   @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  cuenta  Cuenta    @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  venta   Venta     @relation(fields: [ventaId], references: [id])
+  pagos   PagoCxC[]
+
+  @@map("cuentas_por_cobrar")
+}
+
+// `cuentaFinancieraId` sin FK todavía (Story 4.3 no existe) — mismo criterio
+// de deuda técnica documentada que `Compra`/`Venta`.
+model PagoCxC {
+  id                 String   @id @default(uuid()) @db.Uuid
+  cuentaPorCobrarId  String   @map("cuenta_por_cobrar_id") @db.Uuid
+  monto              Decimal  @db.Decimal(18, 4)
+  fecha              DateTime @default(now()) @db.Date
+  cuentaFinancieraId String   @map("cuenta_financiera_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cuentaPorCobrar  CuentaPorCobrar  @relation(fields: [cuentaPorCobrarId], references: [id], onDelete: Cascade)
+  cuentaFinanciera CuentaFinanciera @relation(fields: [cuentaFinancieraId], references: [id])
+
+  @@map("pagos_cxc")
+}
+
+// Story 4.1 — gastos del negocio activo. `negocioId` nullable porque el
+// mismo modelo se reutiliza en Epic 6 para gastos Personal (negocioId null,
+// ambito PERSONAL) — esta story solo cubre el caso Laboral. `clasificacion`
+// no vive acá: se hereda de `tipoGasto.clasificacion` (Story 1.7) en tiempo
+// de lectura, nunca se duplica. `cuentaFinancieraId` sin FK todavía (Story
+// 4.3 no existe) — mismo criterio de deuda técnica que Compra/Venta.
+// [Source: architecture/data-models.md#Gasto, architecture/database-schema.md]
+model Gasto {
+  id                 String   @id @default(uuid()) @db.Uuid
+  cuentaId           String   @map("cuenta_id") @db.Uuid
+  negocioId          String?  @map("negocio_id") @db.Uuid
+  ambito             String
+  tipoGastoId        String   @map("tipo_gasto_id") @db.Uuid
+  monto              Decimal  @db.Decimal(18, 4)
+  monedaId           String   @map("moneda_id") @db.Uuid
+  fecha              DateTime @default(now()) @db.Date
+  formaPago          String   @map("forma_pago")
+  cuentaFinancieraId String   @map("cuenta_financiera_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cuenta           Cuenta           @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  negocio          Negocio?         @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  tipoGasto        TipoGasto        @relation(fields: [tipoGastoId], references: [id])
+  moneda           Moneda           @relation(fields: [monedaId], references: [id])
+  cuentaFinanciera CuentaFinanciera @relation(fields: [cuentaFinancieraId], references: [id])
+
+  @@map("gastos")
+}
+
+// Story 4.2/4.3 — modelo unificado de Caja, Cuenta Bancaria y Tarjeta de
+// Crédito. Ambas stories comparten esta misma tabla (mismo DDL documentado
+// en los Dev Notes de las dos) — se creó acá, en Story 4.2, porque es la
+// primera en necesitarla (deuda de tarjeta); Story 4.3 solo agrega las
+// Server Actions/UI de CAJA/BANCO sobre la tabla ya existente, sin migración
+// propia. Con esta tabla ya creada, se agregaron retroactivamente las FKs
+// pendientes en `Compra`/`Venta`/`Gasto`/`PagoCxC` (documentadas como deuda
+// técnica en esas stories) — ver Completion Notes de Story 4.2.
+// [Source: architecture/data-models.md#CuentaFinanciera, architecture/database-schema.md]
+model CuentaFinanciera {
+  id            String   @id @default(uuid()) @db.Uuid
+  cuentaId      String   @map("cuenta_id") @db.Uuid
+  negocioId     String?  @map("negocio_id") @db.Uuid
+  ambito        String
+  tipo          String
+  nombre        String
+  monedaId      String   @map("moneda_id") @db.Uuid
+  saldoActual   Decimal  @default(0) @map("saldo_actual") @db.Decimal(18, 4)
+  limiteCredito Decimal? @map("limite_credito") @db.Decimal(18, 4)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cuenta             Cuenta              @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  negocio            Negocio?            @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  moneda             Moneda              @relation(fields: [monedaId], references: [id])
+  movimientosCuenta  MovimientoCuenta[]
+  movimientosTarjeta MovimientoTarjeta[]
+  gastos             Gasto[]
+  compras            Compra[]
+  ventas             Venta[]
+  pagosCxc           PagoCxC[]
+
+  @@map("cuentas_financieras")
+}
+
+// `movimientos_cuenta` sigue el mismo patrón de RLS que `venta_items`
+// (`exists(...)` contra `cuentas_financieras`) — no tiene cuenta_id/
+// negocio_id propio. [Source: architecture/data-models.md#MovimientoCuenta]
+model MovimientoCuenta {
+  id                 String   @id @default(uuid()) @db.Uuid
+  cuentaFinancieraId String   @map("cuenta_financiera_id") @db.Uuid
+  tipo               String
+  monto              Decimal  @db.Decimal(18, 4)
+  fecha              DateTime @default(now()) @db.Date
+  referenciaTipo     String?  @map("referencia_tipo")
+  referenciaId       String?  @map("referencia_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cuentaFinanciera CuentaFinanciera @relation(fields: [cuentaFinancieraId], references: [id], onDelete: Cascade)
+
+  @@map("movimientos_cuenta")
+}
+
+model MovimientoTarjeta {
+  id                 String   @id @default(uuid()) @db.Uuid
+  cuentaFinancieraId String   @map("cuenta_financiera_id") @db.Uuid
+  tipo               String
+  monto              Decimal  @db.Decimal(18, 4)
+  fecha              DateTime @default(now()) @db.Date
+  referenciaTipo     String?  @map("referencia_tipo")
+  referenciaId       String?  @map("referencia_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cuentaFinanciera CuentaFinanciera @relation(fields: [cuentaFinancieraId], references: [id], onDelete: Cascade)
+
+  @@map("movimientos_tarjeta")
+}
+
+// Story 5.3 — snapshot inmutable de tasa de cambio manual. Nunca se
+// actualiza una fila existente (Task 1: "insert, nunca update"). Con esta
+// tabla ya creada, se agregaron retroactivamente las FKs pendientes en
+// `Compra`/`Venta` que Story 2.2/3.1 habían dejado documentadas — ver
+// Completion Notes de Story 5.3.
+// [Source: architecture/data-models.md#TasaCambio, architecture/database-schema.md]
+model TasaCambio {
+  id            String   @id @default(uuid()) @db.Uuid
+  monedaId      String   @map("moneda_id") @db.Uuid
+  tasa          Decimal  @db.Decimal(18, 6)
+  vigenteDesde  DateTime @default(now()) @map("vigente_desde") @db.Timestamptz
+  registradaPor String   @map("registrada_por") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  moneda  Moneda   @relation(fields: [monedaId], references: [id], onDelete: Cascade)
+  cuenta  Cuenta   @relation(fields: [registradaPor], references: [id], onDelete: Cascade)
+  compras Compra[]
+  ventas  Venta[]
+
+  @@map("tasas_cambio")
+}
+
+// Story 6.1 — puente explícito entre un negocio y Personal (FR25-FR27):
+// retiro manual (esta story) o por regla predeterminada (Story 6.2,
+// `reglaId` sin FK todavía — la tabla `reglas_retiro` no existe hasta esa
+// story, mismo criterio de deuda técnica ya aplicado en el resto del
+// proyecto). Única tabla Laboral cuya RLS es "relajada" a propósito: no
+// exige coincidencia de `negocio_id` para que Personal pueda leer los
+// retiros de TODOS los negocios de la cuenta a la vez sin necesitar el
+// bypass `'*'` restringido de Story 5.4 — ver policy en la migración.
+// [Source: architecture/data-models.md#RetiroUtilidad / ReglaRetiro, architecture/database-schema.md]
+model RetiroUtilidad {
+  id        String   @id @default(uuid()) @db.Uuid
+  cuentaId  String   @map("cuenta_id") @db.Uuid
+  negocioId String   @map("negocio_id") @db.Uuid
+  monto     Decimal  @db.Decimal(18, 4)
+  fecha     DateTime @default(now()) @db.Date
+  origen    String
+  reglaId   String?  @map("regla_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cuenta  Cuenta  @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  negocio Negocio @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+
+  @@map("retiros_utilidad")
+}
+
+// Story 6.2 — regla de retiro predeterminado (FR26), alternativa
+// automática al retiro manual de Story 6.1. Única regla por negocio
+// (`negocioId` @unique, AC3). `ultimoPeriodoAplicado` ('YYYY-MM') es la
+// clave de idempotencia del job de cierre de período (ADR-001,
+// `.ai/adr-001-cierre-de-periodo-automatico.md`) — ya se incluye en el
+// CREATE TABLE inicial porque `regla_retiro` no existía antes de esta
+// story (a diferencia de lo que sugería el Task 2 original, no hace falta
+// un ALTER TABLE posterior).
+// [Source: architecture/data-models.md#RetiroUtilidad / ReglaRetiro, architecture/database-schema.md#REGLA DE RETIRO PREDETERMINADO]
+model ReglaRetiro {
+  id                    String   @id @default(uuid()) @db.Uuid
+  negocioId             String   @unique @map("negocio_id") @db.Uuid
+  tipo                  String
+  valor                 Decimal  @db.Decimal(18, 4)
+  periodo               String   @default("MENSUAL")
+  activa                Boolean  @default(true)
+  ultimoPeriodoAplicado String?  @map("ultimo_periodo_aplicado")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  negocio Negocio @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+
+  @@map("regla_retiro")
+}
+
+// Story 6.5 — objetivo de reserva financiera y aporte por período (FR31).
+// Única por cuenta (`cuentaId` @unique) — no es por negocio, vive
+// enteramente en Personal. `ultimoPeriodoAplicado` es la misma clave de
+// idempotencia que `ReglaRetiro` (ADR-001): el job de cierre de período
+// suma `aportePorPeriodo` a `progresoAcumulado` una vez por período. Pausar
+// el aporte se hace con `aportePorPeriodo = 0` (Task 1, ADR-001 punto 7) —
+// no hay campo `activa` como en `ReglaRetiro` porque ninguna AC pide un
+// endpoint de pausa explícito.
+// [Source: architecture/data-models.md#ReservaFinanciera, architecture/database-schema.md#RESERVA FINANCIERA]
+model ReservaFinanciera {
+  id                    String   @id @default(uuid()) @db.Uuid
+  cuentaId              String   @unique @map("cuenta_id") @db.Uuid
+  objetivoMonto         Decimal  @map("objetivo_monto") @db.Decimal(18, 4)
+  aportePorPeriodo      Decimal  @map("aporte_por_periodo") @db.Decimal(18, 4)
+  periodo               String   @default("MENSUAL")
+  progresoAcumulado     Decimal  @default(0) @map("progreso_acumulado") @db.Decimal(18, 4)
+  ultimoPeriodoAplicado String?  @map("ultimo_periodo_aplicado")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cuenta Cuenta @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+
+  @@map("reserva_financiera")
+}

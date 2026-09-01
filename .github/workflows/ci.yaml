@@ -1,0 +1,40 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: supabase/postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run db:migrate:test      # aplica migraciones + RLS al Postgres del job
+      - run: npm run test                 # unit
+      - run: npm run test:integration     # aislamiento cuenta/negocio contra Postgres real
+      - run: npx playwright install --with-deps
+      - run: npm run test:e2e
+
+  deploy-migrations:
+    needs: quality
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run db:migrate:deploy    # DIRECT_URL contra Supabase de producción
+        env:
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+    # El deploy de la app en sí lo dispara automáticamente Vercel Git Integration
+    # al detectar el push a main — no se orquesta desde este workflow.
