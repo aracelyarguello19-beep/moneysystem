@@ -1,60 +1,13 @@
-import { PrismaClient, type Prisma } from "@prisma/client";
+import { type Prisma } from "@prisma/client";
 
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+// Story 1.3, Task 2: el cliente Prisma y la capa de acceso a datos viven en
+// `./rls-context` (la ubicación que fija architecture/unified-project-structure.md
+// para `withRlsContext`). `index.ts` los re-exporta para que
+// `import { prisma, withRlsContext } from "@repo/database"` siga siendo el
+// único punto de entrada del paquete.
+import { prisma } from "./rls-context";
 
-// Conectado como `app_user` (NOBYPASSRLS) vía DATABASE_URL — ver
-// docs/architecture/backend-architecture.md#Database Architecture.
-// Singleton para evitar agotar conexiones con hot-reload en desarrollo.
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
-
-// [Source: architecture/backend-architecture.md#Database Architecture]
-export async function withRlsContext<T>(
-  cuentaId: string,
-  negocioId: string | null,
-  fn: (tx: Prisma.TransactionClient) => Promise<T>
-): Promise<T> {
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(
-      `select set_config('request.jwt.claims', $1, true)`,
-      JSON.stringify({ sub: cuentaId, role: "authenticated" })
-    );
-    if (negocioId) {
-      await tx.$executeRawUnsafe(
-        `select set_config('app.active_negocio_id', $1, true)`,
-        negocioId
-      );
-    }
-    return fn(tx);
-  });
-}
-
-// ⚠️ BYPASS CONSOLIDADO RESTRINGIDO (Coding Standards, Story 5.4) ⚠️
-// Setea `app.active_negocio_id = '*'`, lo que hace visibles TODOS los
-// negocios de la cuenta en una sola query — únicamente para LECTURA. Este
-// import está autorizado EXCLUSIVAMENTE desde
-// `apps/web/src/actions/consolidado/obtener-dashboard-consolidado.ts`.
-// Ningún otro archivo del repo debe importarlo: RLS no puede distinguir
-// "intención de lectura" de "intención de escritura" dentro de la misma
-// policy `USING`, así que esta restricción se aplica en código/code review,
-// no hay lint automático para esto (riesgo conocido y documentado).
-// [Source: architecture/backend-architecture.md#Database Architecture, architecture/coding-standards.md#Critical Fullstack Rules]
-export async function withRlsContextConsolidado<T>(
-  cuentaId: string,
-  fn: (tx: Prisma.TransactionClient) => Promise<T>
-): Promise<T> {
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(
-      `select set_config('request.jwt.claims', $1, true)`,
-      JSON.stringify({ sub: cuentaId, role: "authenticated" })
-    );
-    await tx.$executeRawUnsafe(`select set_config('app.active_negocio_id', '*', true)`);
-    return fn(tx);
-  });
-}
+export { prisma, withRlsContext, withRlsContextConsolidado } from "./rls-context";
 
 // Story 1.6, Task 2: siembra el Guaraní como moneda base al crear un negocio
 // nuevo (ambito LABORAL) o en el primer acceso al catálogo Personal (ambito

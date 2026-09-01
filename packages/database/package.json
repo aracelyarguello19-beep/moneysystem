@@ -8,6 +8,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --passWithNoTests tests",
     "prisma:generate": "prisma generate",
     "db:migrate:test": "prisma migrate deploy",
     "db:migrate:deploy": "prisma migrate deploy"
