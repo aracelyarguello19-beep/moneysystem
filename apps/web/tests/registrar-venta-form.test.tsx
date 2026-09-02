@@ -9,11 +9,8 @@ vi.mock("@/actions/inventario/listar-items", () => ({
 vi.mock("@/actions/catalogos/listar-monedas", () => ({
   listarMonedas: vi.fn().mockResolvedValue({ ok: true, data: [] }),
 }));
-vi.mock("@/actions/cuentas-financieras/obtener-saldos", () => ({
-  obtenerSaldos: vi.fn().mockResolvedValue({ ok: true, data: [] }),
-}));
-vi.mock("@/actions/gastos/listar-tarjetas", () => ({
-  listarTarjetas: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+vi.mock("@/actions/cuentas-financieras/listar-cuentas-financieras", () => ({
+  listarCuentasFinancieras: vi.fn().mockResolvedValue({ ok: true, data: [] }),
 }));
 vi.mock("@/actions/ventas/registrar-venta", () => ({
   registrarVenta: vi.fn(),
@@ -28,8 +25,8 @@ describe("RegistrarVentaForm", () => {
     const user = userEvent.setup();
     render(<RegistrarVentaForm negocioId="negocio-1" />);
 
-    await user.selectOptions(screen.getByLabelText(/forma de cobro/i), "CREDITO_CLIENTE");
-    await user.click(screen.getByRole("button", { name: /registrar venta/i }));
+    await user.click(screen.getByRole("button", { name: /crédito/i }));
+    await user.click(screen.getByRole("button", { name: /^registrar venta/i }));
 
     expect(await screen.findByText(/cliente es requerido/i)).toBeInTheDocument();
     expect(registrarVenta).not.toHaveBeenCalled();

@@ -1,6 +1,6 @@
 # Introduction
 
-Este documento define la arquitectura fullstack completa para el Sistema de Control Financiero: backend, frontend y su integración, como fuente única de verdad para el desarrollo dirigido por agentes de IA (@dev). Unifica lo que tradicionalmente serían un documento de arquitectura backend y uno frontend separados, porque en este proyecto —una única aplicación Next.js con Server Actions— ambas capas están intrínsecamente entrelazadas.
+Este documento define la arquitectura fullstack completa para el Money System: backend, frontend y su integración, como fuente única de verdad para el desarrollo dirigido por agentes de IA (@dev). Unifica lo que tradicionalmente serían un documento de arquitectura backend y uno frontend separados, porque en este proyecto —una única aplicación Next.js con Server Actions— ambas capas están intrínsecamente entrelazadas.
 
 **Documentos de entrada revisados:**
 - `docs/prd.md` (v2.3) — 36 Requisitos Funcionales, 11 No Funcionales, 6 Epics, 26 historias. Marcado **READY FOR ARCHITECT**.

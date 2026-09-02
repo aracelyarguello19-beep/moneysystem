@@ -86,17 +86,25 @@ export async function withRlsContext<T>(
   assertCuentaId(cuentaId);
   if (negocioId !== null) assertNegocioIdAislado(negocioId);
 
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(
-      `select set_config('request.jwt.claims', $1, true)`,
-      JSON.stringify({ sub: cuentaId, role: "authenticated" })
-    );
-    await tx.$executeRawUnsafe(
-      `select set_config('app.active_negocio_id', $1, true)`,
-      negocioId ?? ""
-    );
-    return fn(tx);
-  });
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRawUnsafe(
+        `select set_config('request.jwt.claims', $1, true)`,
+        JSON.stringify({ sub: cuentaId, role: "authenticated" })
+      );
+      await tx.$executeRawUnsafe(
+        `select set_config('app.active_negocio_id', $1, true)`,
+        negocioId ?? ""
+      );
+      return fn(tx);
+    },
+    // Default de Prisma (5s) alcanza para una operación de un solo ítem, pero
+    // una Venta/Compra con varios ítems hace un round-trip remoto por ítem
+    // (findUnique + update de stock, etc.) y puede superarlo bajo latencia de
+    // red normal contra Supabase, abortando la transacción a mitad de camino
+    // ("Transaction not found... obtained before disconnecting").
+    { timeout: 15000, maxWait: 5000 }
+  );
 }
 
 // ⚠️ BYPASS CONSOLIDADO RESTRINGIDO (Coding Standards, Story 5.4) ⚠️
@@ -115,12 +123,15 @@ export async function withRlsContextConsolidado<T>(
 ): Promise<T> {
   assertCuentaId(cuentaId);
 
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(
-      `select set_config('request.jwt.claims', $1, true)`,
-      JSON.stringify({ sub: cuentaId, role: "authenticated" })
-    );
-    await tx.$executeRawUnsafe(`select set_config('app.active_negocio_id', '*', true)`);
-    return fn(tx);
-  });
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRawUnsafe(
+        `select set_config('request.jwt.claims', $1, true)`,
+        JSON.stringify({ sub: cuentaId, role: "authenticated" })
+      );
+      await tx.$executeRawUnsafe(`select set_config('app.active_negocio_id', '*', true)`);
+      return fn(tx);
+    },
+    { timeout: 15000, maxWait: 5000 }
+  );
 }

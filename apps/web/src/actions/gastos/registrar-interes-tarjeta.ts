@@ -6,7 +6,6 @@ import {
   assertCuentaFinancieraEsTarjeta,
   assertTipoGastoFinanciero,
   assertTipoGastoLaboral,
-  assertTipoGastoPersonal,
 } from "@repo/domain";
 import { registrarInteresTarjetaSchema } from "@repo/domain/schemas";
 import { aplicarMovimientoTarjeta, withRlsContext } from "@repo/database";
@@ -16,12 +15,8 @@ import { getCurrentAccount } from "@/lib/auth";
 // `INTERES` y, en la misma transacción, como `Gasto` con `tipoGastoId` de
 // clasificación Financiero — nunca como un movimiento sin contrapartida en
 // gastos, para que alimente el indicador de Gastos Financieros (Epic 5).
-// `negocioId: null` (Story 6.4, AC2) reutiliza la misma función para el
-// interés de tarjeta personal — el `Gasto` generado queda `ambito:
-// 'PERSONAL'` con un `TipoGasto` Personal clasificación Financiero (ADR-002),
-// en vez de Laboral/Operativo.
 export async function registrarInteresTarjeta(
-  negocioId: string | null,
+  negocioId: string,
   tarjetaId: string,
   input: unknown
 ): Promise<Result<CuentaFinanciera>> {
@@ -57,11 +52,7 @@ export async function registrarInteresTarjeta(
       const tipoGasto = await tx.tipoGasto.findUniqueOrThrow({
         where: { id: parsed.data.tipoGastoId },
       });
-      if (negocioId) {
-        assertTipoGastoLaboral({ ambito: tipoGasto.ambito as TipoGasto["ambito"] });
-      } else {
-        assertTipoGastoPersonal({ ambito: tipoGasto.ambito as TipoGasto["ambito"] });
-      }
+      assertTipoGastoLaboral({ ambito: tipoGasto.ambito as TipoGasto["ambito"] });
       assertTipoGastoFinanciero({ clasificacion: tipoGasto.clasificacion as TipoGasto["clasificacion"] });
 
       await aplicarMovimientoTarjeta(tx, {
@@ -74,7 +65,7 @@ export async function registrarInteresTarjeta(
         data: {
           cuentaId: cuenta.id,
           negocioId,
-          ambito: negocioId ? "LABORAL" : "PERSONAL",
+          ambito: "NEGOCIO",
           tipoGastoId: parsed.data.tipoGastoId,
           monto: parsed.data.monto,
           monedaId: tarjeta.monedaId,
@@ -86,8 +77,8 @@ export async function registrarInteresTarjeta(
       return tx.cuentaFinanciera.findUniqueOrThrow({ where: { id: tarjetaId } });
     });
 
-    revalidatePath(negocioId ? "/laboral/tarjeta" : "/personal/tarjeta");
-    revalidatePath(negocioId ? "/laboral/gastos" : "/personal/gastos");
+    revalidatePath("/laboral/caja");
+    revalidatePath("/laboral/gastos");
 
     return {
       ok: true,
@@ -95,9 +86,11 @@ export async function registrarInteresTarjeta(
         id: actualizada.id,
         cuentaId: actualizada.cuentaId,
         negocioId: actualizada.negocioId,
-        ambito: actualizada.ambito as CuentaFinanciera["ambito"],
         tipo: actualizada.tipo as CuentaFinanciera["tipo"],
         nombre: actualizada.nombre,
+        banco: actualizada.banco,
+        alias: actualizada.alias,
+        detalleOtro: actualizada.detalleOtro,
         monedaId: actualizada.monedaId,
         saldoActual: actualizada.saldoActual.toString(),
         limiteCredito: actualizada.limiteCredito?.toString() ?? null,

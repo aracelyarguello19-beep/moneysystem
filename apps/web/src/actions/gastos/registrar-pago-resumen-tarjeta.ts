@@ -11,11 +11,9 @@ import { getCurrentAccount } from "@/lib/auth";
 // `PAGO_RESUMEN`) y, en la misma transacción, registra el `EGRESO` sobre la
 // cuenta usada para pagar. No usa `withErrorHandling`: necesita distinguir
 // "tipo de cuenta financiera inválido" (VALIDATION) de "no existe/de otro
-// negocio" (NOT_FOUND, vía RLS). `negocioId: null` (Story 6.4, AC1) reutiliza
-// exactamente la misma función para la tarjeta personal — no hay lógica
-// nueva, solo el `withRlsContext(cuentaId, null, fn)` ya usado en Personal.
+// negocio" (NOT_FOUND, vía RLS).
 export async function registrarPagoResumenTarjeta(
-  negocioId: string | null,
+  negocioId: string,
   tarjetaId: string,
   input: unknown
 ): Promise<Result<CuentaFinanciera>> {
@@ -70,7 +68,7 @@ export async function registrarPagoResumenTarjeta(
       return tx.cuentaFinanciera.findUniqueOrThrow({ where: { id: tarjetaId } });
     });
 
-    revalidatePath(negocioId ? "/laboral/tarjeta" : "/personal/tarjeta");
+    revalidatePath("/laboral/caja");
 
     return {
       ok: true,
@@ -78,9 +76,11 @@ export async function registrarPagoResumenTarjeta(
         id: actualizada.id,
         cuentaId: actualizada.cuentaId,
         negocioId: actualizada.negocioId,
-        ambito: actualizada.ambito as CuentaFinanciera["ambito"],
         tipo: actualizada.tipo as CuentaFinanciera["tipo"],
         nombre: actualizada.nombre,
+        banco: actualizada.banco,
+        alias: actualizada.alias,
+        detalleOtro: actualizada.detalleOtro,
         monedaId: actualizada.monedaId,
         saldoActual: actualizada.saldoActual.toString(),
         limiteCredito: actualizada.limiteCredito?.toString() ?? null,

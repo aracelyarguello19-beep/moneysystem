@@ -2,14 +2,19 @@ import type { TipoGasto } from "./tipo-gasto";
 
 export type FormaPagoGasto = "EFECTIVO" | "BANCO" | "TARJETA";
 
-// El mismo modelo se reutiliza en Epic 6 para gastos Personal (negocioId
-// null, ambito PERSONAL) — Story 4.1 cubre exclusivamente el caso Laboral.
+// NEGOCIO = gasto del propio negocio; PERSONAL = gasto personal del dueño
+// pagado con la caja del negocio (reemplaza al viejo Retiro de utilidad —
+// mismo movimiento de caja, categorizado como gasto en vez de un concepto
+// aparte). `negocioId` siempre presente: el ámbito global "Personal" (fuera
+// de cualquier negocio) ya no existe en el sistema.
+export type AmbitoGasto = "NEGOCIO" | "PERSONAL";
+
 // [Source: architecture/data-models.md#Gasto]
 export interface Gasto {
   id: string;
   cuentaId: string;
-  negocioId: string | null;
-  ambito: "LABORAL" | "PERSONAL";
+  negocioId: string;
+  ambito: AmbitoGasto;
   tipoGastoId: string;
   monto: string;
   monedaId: string;
@@ -37,15 +42,6 @@ export class TipoGastoAmbitoInvalidoError extends Error {
 export function assertTipoGastoLaboral(tipoGasto: Pick<TipoGasto, "ambito">): void {
   if (tipoGasto.ambito !== "LABORAL") {
     throw new TipoGastoAmbitoInvalidoError("LABORAL");
-  }
-}
-
-// AC1/AC2 (Story 6.3): simétrico a `assertTipoGastoLaboral` — un gasto
-// Personal solo puede clasificarse con un TipoGasto del catálogo Personal
-// (Fijo/Variable/Financiero), nunca uno Laboral.
-export function assertTipoGastoPersonal(tipoGasto: Pick<TipoGasto, "ambito">): void {
-  if (tipoGasto.ambito !== "PERSONAL") {
-    throw new TipoGastoAmbitoInvalidoError("PERSONAL");
   }
 }
 

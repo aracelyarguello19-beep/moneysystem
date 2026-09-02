@@ -1,0 +1,11 @@
+-- Congela el costo de un ítem Producto al momento de venderse — hasta acá,
+-- el CMV se calculaba leyendo `items.costo_compra` en vivo, así que editar
+-- el costo de un producto después (pantalla "Costos de productos")
+-- recalculaba retroactivamente la ganancia de ventas ya cerradas. Mismo
+-- criterio que `costo_servicio` (Servicio) y `tasa_cambio_id` (moneda
+-- extranjera): todo dato que afecta el resultado de una venta se resuelve
+-- una sola vez, al momento de venderse, y queda inmutable.
+-- Nullable: NULL para líneas de tipo Servicio (usan costo_servicio) y para
+-- filas anteriores a esta migración (el cálculo de indicadores cae de nuevo
+-- a `items.costo_compra` en ese caso).
+ALTER TABLE "venta_items" ADD COLUMN "costo_unitario" DECIMAL(18,4);

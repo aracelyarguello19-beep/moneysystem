@@ -25,7 +25,12 @@ export interface VentaItem {
   cantidad: string | null; // null para Servicio sin cantidad explícita
   precioUnitario: string;
   costoServicio: string | null; // solo Servicio — null tratado como 0, ver Story 3.2
+  costoUnitario: string | null; // solo Producto, congelado al vender — null en filas previas a esta columna
   cantidadDevuelta: string; // acumulador de devoluciones parciales, ver Story 3.3
+  // true = "venta libre" (sobre pedido, fuera de inventario): itemId solo
+  // identifica el producto/modelo — no descuenta stock, y costoUnitario lo
+  // tipea el usuario en el momento en vez de leerse del catálogo.
+  esLibre: boolean;
 }
 
 // Forma extendida de `Venta`/`VentaItem` para vistas de listado/detalle —

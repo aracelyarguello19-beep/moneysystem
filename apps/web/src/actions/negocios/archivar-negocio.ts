@@ -45,6 +45,7 @@ export async function archivarNegocio(negocioId: string): Promise<Result<Negocio
         id: negocio.id,
         cuentaId: negocio.cuentaId,
         nombre: negocio.nombre,
+        tipo: negocio.tipo as Negocio["tipo"],
         estado: negocio.estado as Negocio["estado"],
         createdAt: negocio.createdAt,
         archivedAt: negocio.archivedAt,

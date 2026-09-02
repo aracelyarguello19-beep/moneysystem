@@ -5,6 +5,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signInSchema, type SignInInput } from "@repo/domain/schemas";
 import { signIn } from "@/actions/auth/sign-in";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
 
 export default function LoginPage() {
   const [serverMessage, setServerMessage] = useState<string | null>(null);
@@ -32,54 +35,24 @@ export default function LoginPage() {
         className="flex w-full max-w-sm flex-col gap-3"
         noValidate
       >
-        <div>
-          <label htmlFor="email" className="block text-sm">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            className="w-full rounded border px-3 py-2"
-            {...register("email")}
-          />
-          {errors.email && (
-            <p role="alert" className="text-sm text-red-600">
-              {errors.email.message}
-            </p>
-          )}
-        </div>
-        <div>
-          <label htmlFor="password" className="block text-sm">
-            Contraseña
-          </label>
-          <input
-            id="password"
-            type="password"
-            className="w-full rounded border px-3 py-2"
-            {...register("password")}
-          />
-          {errors.password && (
-            <p role="alert" className="text-sm text-red-600">
-              {errors.password.message}
-            </p>
-          )}
-        </div>
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded bg-emerald-600 px-4 py-2 text-white disabled:opacity-50"
-        >
+        <FormField htmlFor="email" label="Email" error={errors.email?.message}>
+          <Input id="email" type="email" className="w-full" {...register("email")} />
+        </FormField>
+        <FormField htmlFor="password" label="Contraseña" error={errors.password?.message}>
+          <Input id="password" type="password" className="w-full" {...register("password")} />
+        </FormField>
+        <Button type="submit" disabled={isSubmitting}>
           Iniciar sesión
-        </button>
+        </Button>
         {serverMessage && (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-danger">
             {serverMessage}
           </p>
         )}
       </form>
-      <a href="/registro" className="text-sm underline">
-        Crear cuenta
-      </a>
+      <Button asChild variant="link">
+        <a href="/registro">Crear cuenta</a>
+      </Button>
     </main>
   );
 }

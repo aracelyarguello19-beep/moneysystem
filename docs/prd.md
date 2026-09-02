@@ -1,4 +1,4 @@
-# Sistema de Control Financiero (Personal + Laboral, Multi-Negocio) — Product Requirements Document (PRD)
+# Money System (Personal + Laboral, Multi-Negocio) — Product Requirements Document (PRD)
 
 > Nombre de trabajo: `[NOMBRE_PROYECTO]` — placeholder heredado del Project Brief, no bloquea el avance.
 

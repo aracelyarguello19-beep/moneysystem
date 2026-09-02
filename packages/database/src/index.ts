@@ -38,6 +38,24 @@ export async function seedMonedaBase(
   });
 }
 
+// Siembra los tipos de gasto por defecto (Insumos, Compras, Publicidad) al
+// crear un negocio — mismo criterio idempotente que `seedMonedaBase`, para
+// que el usuario no tenga que crearlos a mano antes de poder registrar su
+// primer gasto. El usuario puede seguir agregando tipos propios además.
+export async function seedTiposGastoDefault(
+  tx: Prisma.TransactionClient,
+  params: { cuentaId: string; negocioId: string }
+): Promise<void> {
+  await tx.tipoGasto.createMany({
+    data: [
+      { cuentaId: params.cuentaId, negocioId: params.negocioId, ambito: "LABORAL", nombre: "Insumos", clasificacion: "OPERATIVO" },
+      { cuentaId: params.cuentaId, negocioId: params.negocioId, ambito: "LABORAL", nombre: "Compras", clasificacion: "OPERATIVO" },
+      { cuentaId: params.cuentaId, negocioId: params.negocioId, ambito: "LABORAL", nombre: "Publicidad", clasificacion: "OPERATIVO" },
+    ],
+    skipDuplicates: true,
+  });
+}
+
 export * from "./inventario";
 export * from "./ledger";
 export * from "./tasa-cambio";

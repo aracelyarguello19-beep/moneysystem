@@ -20,6 +20,7 @@ export const listarNegocios = withErrorHandling(async (): Promise<Negocio[]> => 
     id: n.id,
     cuentaId: n.cuentaId,
     nombre: n.nombre,
+    tipo: n.tipo as Negocio["tipo"],
     estado: n.estado as Negocio["estado"],
     createdAt: n.createdAt,
     archivedAt: n.archivedAt,

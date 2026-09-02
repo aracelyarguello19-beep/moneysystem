@@ -1,8 +1,15 @@
+// Define qué muestra el dashboard del negocio (Indicadores) y qué secciones
+// del menú lateral tienen sentido para él — un negocio de Servicios nunca
+// vendió mercadería, así que el CMV (Costo de Mercadería Vendida) no debería
+// figurar ahí; simétrico para CSV en uno de Productos. MIXTO muestra todo.
+export type TipoNegocio = "PRODUCTOS" | "SERVICIOS" | "MIXTO";
+
 // [Source: architecture/data-models.md#Negocio]
 export interface Negocio {
   id: string;
   cuentaId: string;
   nombre: string;
+  tipo: TipoNegocio;
   estado: "ACTIVO" | "ARCHIVADO";
   createdAt: Date;
   archivedAt: Date | null;

@@ -1,1 +1,184 @@
 @import "tailwindcss";
+
+/* Habilita `dark:` como variante por clase (.dark en un ancestro, ej. <html>) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens — puerto exacto del design system "Fiscal Precision"
+ * (Stitch), fuente: /Users/andercandia/Downloads/stitch_gesti_n_financiera_empresarial
+ * (DESIGN.md + code.html de cada pantalla). Nomenclatura Material Design 3:
+ * cada superficie tiene su "on-*" (color de texto/ícono que va ENCIMA de
+ * esa superficie) — nunca se hardcodea un color de texto suelto, siempre se
+ * empareja con la superficie que lo contiene.
+ *
+ * Se mantienen además los alias semánticos viejos (bg-primary, text-ink,
+ * border-default, etc.) apuntando a estos mismos valores, para que el
+ * código que todavía no fue migrado a la nomenclatura nueva no rompa visualmente.
+ */
+@theme {
+  /* --- Paleta exacta "Fiscal Precision" (tema claro, el único definido por Stitch) --- */
+  --color-surface: #f7f9fb;
+  --color-surface-dim: #d8dadc;
+  --color-surface-bright: #fcf8fa;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f6f3f5;
+  --color-surface-container: #eceef0;
+  --color-surface-container-high: #eae7e9;
+  --color-surface-container-highest: #e4e2e4;
+  --color-surface-variant: #e4e2e4;
+  --color-on-surface: #1b1b1d;
+  --color-on-surface-variant: #45464d;
+  --color-inverse-surface: #303032;
+  --color-inverse-on-surface: #f3f0f2;
+  --color-outline: #76777d;
+  --color-outline-variant: #c6c6cd;
+  --color-surface-tint: #565e74;
+
+  --color-primary: #000000;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #131b2e;
+  --color-on-primary-container: #7c839b;
+  --color-inverse-primary: #bec6e0;
+  --color-primary-fixed: #dae2fd;
+  --color-primary-fixed-dim: #bec6e0;
+  --color-on-primary-fixed: #131b2e;
+  --color-on-primary-fixed-variant: #3f465c;
+
+  --color-secondary: #515f74;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #d5e3fd;
+  --color-on-secondary-container: #57657b;
+  --color-secondary-fixed: #d5e3fd;
+  --color-secondary-fixed-dim: #b9c7e0;
+  --color-on-secondary-fixed: #0d1c2f;
+  --color-on-secondary-fixed-variant: #3a485c;
+
+  --color-tertiary: #0ea5e9;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #271901;
+  --color-on-tertiary-container: #98805d;
+  --color-tertiary-fixed: #fcdeb5;
+  --color-tertiary-fixed-dim: #dec29a;
+  --color-on-tertiary-fixed: #271901;
+  --color-on-tertiary-fixed-variant: #574425;
+
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  --color-background: #fcf8fa;
+  --color-on-background: #1b1b1d;
+
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+
+  /* --- Alias semánticos ya usados en componentes existentes --- */
+  --color-surface-elevated: var(--color-surface-container-lowest);
+  --color-ink: var(--color-on-surface);
+  --color-primary-hover: var(--color-inverse-surface);
+  --color-primary-subtle: var(--color-secondary-container);
+  --color-danger: var(--color-error);
+  --color-danger-hover: #93000a;
+  --color-danger-subtle: var(--color-error-container);
+  --color-warning-subtle: #fef3c7;
+  --color-warning-text: #92400e;
+  --color-neutral-bg: var(--color-surface-container-high);
+  --color-default: var(--color-outline-variant);
+  --color-muted: var(--color-on-surface-variant);
+  --color-subtle: var(--color-outline);
+
+  /* --- Tipografía y forma exactas de Stitch --- */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --radius-DEFAULT: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --spacing-gutter: 16px;
+  --spacing-margin-mobile: 16px;
+  --spacing-margin-desktop: 32px;
+  --spacing-sidebar-width: 260px;
+
+  /*
+   * Escala tipográfica exacta de Stitch. El peso de fuente que Stitch
+   * empaqueta en cada nombre (ej. label-lg = 600) se aplica aparte con las
+   * utilidades estándar de Tailwind (font-medium/font-semibold/font-bold) —
+   * Tailwind v4 no permite empaquetar peso dentro de un tamaño de texto.
+   */
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 24px;
+  --text-body-md: 14px;
+  --text-body-md--line-height: 20px;
+  --text-label-lg: 14px;
+  --text-label-lg--line-height: 20px;
+  --text-label-md: 12px;
+  --text-label-md--line-height: 16px;
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+  --text-headline-lg-mobile: 28px;
+  --text-headline-lg-mobile--line-height: 36px;
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 32px;
+  --text-headline-sm: 20px;
+  --text-headline-sm--line-height: 28px;
+}
+
+/*
+ * Tema dark — Stitch no define una paleta oscura completa (solo tema claro).
+ * Se deriva una siguiendo la misma convención M3: superficies oscuras
+ * (inverse-surface/inverse-on-surface ya están pensados para esto en la
+ * propia paleta clara), acentos (primary/success/warning/error) un tono más
+ * claro para mantener contraste.
+ *
+ * `.dark` (no `data-theme`) porque es la clase que `ThemeToggle` alterna en
+ * `<html>` — la misma que habilita la variante `dark:` de Tailwind arriba.
+ */
+.dark {
+  --color-surface: #18181a;
+  --color-surface-dim: #0f0f10;
+  --color-surface-bright: #232325;
+  --color-surface-container-lowest: #101011;
+  --color-surface-container-low: #1c1c1e;
+  --color-surface-container: #232325;
+  --color-surface-container-high: #2b2b2e;
+  --color-surface-container-highest: #333336;
+  --color-surface-variant: #2b2b2e;
+  --color-on-surface: #f3f0f2;
+  --color-on-surface-variant: #c6c6cd;
+  --color-outline: #8e8e94;
+  --color-outline-variant: #45464d;
+
+  --color-primary: #ffffff;
+  --color-on-primary: #131b2e;
+  --color-primary-container: #7c839b;
+  --color-on-primary-container: #131b2e;
+
+  --color-secondary-container: #3a485c;
+  --color-on-secondary-container: #d5e3fd;
+
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+
+  --color-background: #101011;
+  --color-on-background: #f3f0f2;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-on-background);
+    font-family: var(--font-sans);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-tertiary);
+    outline-offset: 2px;
+  }
+}
+
+/* Material Symbols: por defecto "outline" (peso 400, sin relleno); [data-weight="fill"] lo rellena para el estado activo. */
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+[data-weight="fill"] .material-symbols-outlined {
+  font-variation-settings: "FILL" 1;
+}

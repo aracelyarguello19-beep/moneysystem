@@ -29,3 +29,9 @@ Thumbs.db
 .aiox-core/local/
 .claude/settings.local.json
 .aiox/install-log.txt
+.aiox/active-agent
+.claude/agent-memory/
+
+# Local tool state (Claude Code session)
+supabase/.temp/
+outputs/

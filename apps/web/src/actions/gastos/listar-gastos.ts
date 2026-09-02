@@ -10,10 +10,9 @@ import { withErrorHandling } from "@/lib/server-action-wrapper";
 // con `tipos_gasto`) — necesario para la UI, no pedido como Server Action
 // explícita en las Tasks pero implícito para poder mostrar algo en
 // `/laboral/gastos` (mismo criterio que `listarItems`/`listarVentas`).
-// `negocioId: null` (Story 6.3) lista los gastos personales.
 export const listarGastos = withErrorHandling(
   async (
-    negocioId: string | null
+    negocioId: string
   ): Promise<(Gasto & { tipoGastoNombre: string; clasificacion: TipoGasto["clasificacion"] })[]> => {
     const cuenta = await getCurrentAccount();
     if (!cuenta) throw new Error("No hay sesión activa");

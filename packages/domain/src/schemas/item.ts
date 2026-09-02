@@ -14,6 +14,7 @@ export const crearItemSchema = z.discriminatedUnion("tipo", [
     monedaId: z.string().uuid(),
     costoCompra: decimalStringSchema,
     stockActual: decimalStringSchema,
+    imagenUrl: z.string().url().optional(),
   }),
   z.object({
     tipo: z.literal("SERVICIO"),
@@ -22,6 +23,7 @@ export const crearItemSchema = z.discriminatedUnion("tipo", [
     monedaId: z.string().uuid(),
     costoCompra: z.null().default(null),
     stockActual: z.literal("0").default("0"),
+    imagenUrl: z.string().url().optional(),
   }),
 ]);
 export type CrearItemInput = z.infer<typeof crearItemSchema>;
@@ -33,5 +35,6 @@ export const editarItemSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio"),
   precioVenta: decimalStringSchema,
   tipo: z.enum(["PRODUCTO", "SERVICIO"]).optional(),
+  imagenUrl: z.string().url().nullable().optional(),
 });
 export type EditarItemInput = z.infer<typeof editarItemSchema>;

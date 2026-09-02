@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { VentaConItems } from "@repo/domain";
-import { esCostoServicioIncompleto } from "@repo/domain";
+import { calcularTotalVenta, esCostoServicioIncompleto } from "@repo/domain";
 import { listarVentas } from "@/actions/ventas/listar-ventas";
 import { cancelarVenta } from "@/actions/ventas/cancelar-venta";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 
 // AC3 (Story 3.2): marca visualmente las líneas de Servicio sin
 // `costoServicio` registrado como "dato incompleto" — nunca las rechaza, el
@@ -51,76 +55,91 @@ export function VentasLista({ negocioId }: { negocioId: string }) {
   }
 
   if (!ventas || ventas.length === 0) {
-    return <p className="text-sm text-gray-500">Todavía no hay ventas registradas.</p>;
+    return <p className="text-sm text-muted">Todavía no hay ventas registradas.</p>;
   }
 
   return (
-    <ul className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
       {ventas.map((venta) => (
-        <li key={venta.id} className="rounded border px-4 py-2">
+        <Card key={venta.id}>
           <div className="flex items-center justify-between">
-            <p className="text-xs text-gray-500">
+            <p className="flex items-center gap-2 text-xs text-muted">
               {venta.fecha.toString().slice(0, 10)} · {venta.formaCobro}
-              {venta.cliente && ` · ${venta.cliente}`} · {venta.estado}
-            </p>
-            {venta.estado !== "CANCELADA" && (
-              <button
-                type="button"
-                onClick={() => onCancelarTodo(venta.id)}
-                className="text-sm text-red-600 underline"
+              {venta.cliente && ` · ${venta.cliente}`}
+              <Badge
+                variant={
+                  venta.estado === "CANCELADA"
+                    ? "danger"
+                    : venta.estado === "DEVUELTA_PARCIAL"
+                      ? "warning"
+                      : "success"
+                }
               >
-                Cancelar venta
-              </button>
-            )}
+                {venta.estado}
+              </Badge>
+            </p>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-success">
+                +
+                {calcularTotalVenta(
+                  venta.items.map((item) => ({
+                    precioUnitario: item.precioUnitario,
+                    cantidad: item.cantidad,
+                  }))
+                )}
+              </span>
+              {venta.estado !== "CANCELADA" && (
+                <Button type="button" variant="link" className="text-danger" onClick={() => onCancelarTodo(venta.id)}>
+                  Cancelar venta
+                </Button>
+              )}
+            </div>
           </div>
           <ul className="mt-1 flex flex-col gap-1">
             {venta.items.map((item) => (
               <li key={item.id} className="flex items-center gap-2 text-sm">
                 <span>{item.itemNombre}</span>
-                <span className="text-gray-500">{item.precioUnitario}</span>
+                <span className="text-muted">{item.precioUnitario}</span>
                 {item.itemTipo === "PRODUCTO" && (
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-subtle">
                     devuelto: {item.cantidadDevuelta}/{item.cantidad}
                   </span>
                 )}
                 {esCostoServicioIncompleto({
                   tipo: item.itemTipo,
                   costoServicio: item.costoServicio,
-                }) && (
-                  <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-                    dato incompleto
-                  </span>
-                )}
+                }) && <Badge variant="warning">dato incompleto</Badge>}
                 {venta.estado !== "CANCELADA" && (
                   <span className="flex items-center gap-1">
-                    <input
+                    <Input
                       aria-label={`Cantidad a devolver de ${item.itemNombre}`}
                       value={devoluciones[item.id] ?? ""}
                       onChange={(e) =>
                         setDevoluciones((prev) => ({ ...prev, [item.id]: e.target.value }))
                       }
                       placeholder="cant."
-                      className="w-16 rounded border px-2 py-1 text-xs"
+                      className="w-16 text-xs"
                     />
-                    <button
+                    <Button
                       type="button"
+                      variant="link"
+                      className="text-xs"
                       onClick={() => onDevolverLinea(venta.id, item.id)}
-                      className="text-xs underline"
                     >
                       Devolver
-                    </button>
+                    </Button>
                   </span>
                 )}
               </li>
             ))}
           </ul>
           {mensajes[venta.id] && (
-            <p role="alert" className="mt-1 text-xs text-red-600">
+            <p role="alert" className="mt-1 text-xs text-danger">
               {mensajes[venta.id]}
             </p>
           )}
-        </li>
+        </Card>
       ))}
-    </ul>
+    </div>
   );
 }

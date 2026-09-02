@@ -26,7 +26,6 @@ export type NegocioFixture = {
   compraId: string;
   movimientoCuentaId: string;
   gastoId: string;
-  retiroId: string;
   tasaCambioId: string;
 };
 
@@ -141,7 +140,6 @@ export async function crearNegocioCompleto(
       data: {
         cuentaId,
         negocioId,
-        ambito: "LABORAL",
         tipo: "CAJA",
         nombre: `Caja ${nombre}`,
         monedaId: moneda.id,
@@ -220,16 +218,13 @@ export async function crearNegocioCompleto(
       data: {
         cuentaId,
         negocioId,
-        ambito: "LABORAL",
+        ambito: "NEGOCIO",
         tipoGastoId: catalogo.tipoGastoId,
         monto: "100",
         monedaId: catalogo.monedaId,
         formaPago: "EFECTIVO",
         cuentaFinancieraId: catalogo.cuentaFinancieraId,
       },
-    });
-    const retiro = await tx.retiroUtilidad.create({
-      data: { cuentaId, negocioId, monto: "50", origen: "MANUAL" },
     });
     const tasa = await tx.tasaCambio.create({
       data: { monedaId: catalogo.monedaId, tasa: "1", registradaPor: cuentaId },
@@ -238,7 +233,6 @@ export async function crearNegocioCompleto(
       compraId: compra.id,
       movimientoCuentaId: movimiento.id,
       gastoId: gasto.id,
-      retiroId: retiro.id,
       tasaCambioId: tasa.id,
     };
   });
@@ -277,9 +271,7 @@ export async function borrarNegocioCompleto(
     await tx.compra.deleteMany({});
     await tx.gasto.deleteMany({});
   });
-  await borrar("retiros + regla + items + tasas", async (tx) => {
-    await tx.retiroUtilidad.deleteMany({ where: { negocioId } });
-    await tx.reglaRetiro.deleteMany({});
+  await borrar("items + tasas", async (tx) => {
     await tx.item.deleteMany({});
     await tx.tasaCambio.deleteMany({});
   });

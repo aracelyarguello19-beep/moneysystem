@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { archivarNegocio } from "@/actions/negocios/archivar-negocio";
+import { Button } from "@/components/ui/button";
 
 export function ArchivarNegocioButton({ negocioId }: { negocioId: string }) {
   const router = useRouter();
@@ -23,16 +24,11 @@ export function ArchivarNegocioButton({ negocioId }: { negocioId: string }) {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={isPending}
-        className="text-sm text-red-600 underline disabled:opacity-50"
-      >
+      <Button type="button" variant="link" className="text-danger" onClick={handleClick} disabled={isPending}>
         Archivar
-      </button>
+      </Button>
       {error && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-xs text-danger">
           {error}
         </p>
       )}

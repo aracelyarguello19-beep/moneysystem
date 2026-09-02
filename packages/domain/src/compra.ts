@@ -15,6 +15,9 @@ export interface Compra {
   cuentaFinancieraId: string | null; // null solo si CREDITO_PROVEEDOR
   monedaId: string;
   tasaCambioId: string | null; // null si moneda == base
+  // false = generada automáticamente por una venta libre (sobre pedido):
+  // registra el costo para el flujo de caja/balance sin sumar stock.
+  afectaInventario: boolean;
 }
 
 export class ItemNoEsProductoError extends Error {

@@ -1,8 +1,8 @@
-# Sistema de Control Financiero (Personal + Laboral, Multi-Negocio) — Product Requirements Document (PRD)
+# Money System (Personal + Laboral, Multi-Negocio) — Product Requirements Document (PRD)
 
 ## Table of Contents
 
-- [Sistema de Control Financiero (Personal + Laboral, Multi-Negocio) — Product Requirements Document (PRD)](#table-of-contents)
+- [Money System (Personal + Laboral, Multi-Negocio) — Product Requirements Document (PRD)](#table-of-contents)
   - [Goals and Background Context](./goals-and-background-context.md)
     - [Goals](./goals-and-background-context.md#goals)
     - [Background Context](./goals-and-background-context.md#background-context)

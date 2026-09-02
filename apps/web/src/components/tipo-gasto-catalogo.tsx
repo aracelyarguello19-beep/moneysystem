@@ -5,32 +5,23 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   tipoGastoCamposLaboralSchema,
-  tipoGastoCamposPersonalSchema,
   type TipoGastoCamposLaboralInput,
-  type TipoGastoCamposPersonalInput,
 } from "@repo/domain/schemas";
 import type { TipoGasto } from "@repo/domain";
 import { crearTipoGasto } from "@/actions/catalogos/crear-tipo-gasto";
 import { listarTiposGasto } from "@/actions/catalogos/listar-tipos-gasto";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
-const OPCIONES_CLASIFICACION = {
-  LABORAL: ["OPERATIVO", "FINANCIERO"],
-  PERSONAL: ["FIJO", "VARIABLE", "FINANCIERO"],
-} as const;
+const OPCIONES_CLASIFICACION = ["OPERATIVO", "FINANCIERO"] as const;
 
-type CamposInput = TipoGastoCamposLaboralInput | TipoGastoCamposPersonalInput;
-
-// La clasificación disponible depende del ámbito (AC1/AC2) — el formulario
-// nunca ofrece una clasificación que no corresponda, y el submit queda
-// deshabilitado hasta elegir una (AC3, Task 2).
+// La clasificación disponible se restringe a las Laboral (AC1) — el
+// formulario nunca ofrece una clasificación que no corresponda, y el submit
+// queda deshabilitado hasta elegir una (AC3, Task 2).
 // [Source: architecture/frontend-architecture.md#Component Organization]
-export function TipoGastoCatalogo({
-  ambito,
-  negocioId,
-}: {
-  ambito: "LABORAL" | "PERSONAL";
-  negocioId: string | null;
-}) {
+export function TipoGastoCatalogo({ negocioId }: { negocioId: string }) {
   const [tiposGasto, setTiposGasto] = useState<TipoGasto[] | null>(null);
   const [serverMessage, setServerMessage] = useState<string | null>(null);
 
@@ -43,17 +34,19 @@ export function TipoGastoCatalogo({
     cargar();
   }, [cargar]);
 
-  const schema = ambito === "LABORAL" ? tipoGastoCamposLaboralSchema : tipoGastoCamposPersonalSchema;
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting, isValid },
-  } = useForm<CamposInput>({ resolver: zodResolver(schema), mode: "onChange" });
+  } = useForm<TipoGastoCamposLaboralInput>({
+    resolver: zodResolver(tipoGastoCamposLaboralSchema),
+    mode: "onChange",
+  });
 
-  async function onSubmit(data: CamposInput) {
+  async function onSubmit(data: TipoGastoCamposLaboralInput) {
     setServerMessage(null);
-    const result = await crearTipoGasto({ ambito, negocioId, ...data });
+    const result = await crearTipoGasto({ negocioId, ...data });
     if (!result.ok) {
       setServerMessage(result.error.message);
       return;
@@ -65,66 +58,37 @@ export function TipoGastoCatalogo({
   return (
     <div className="flex flex-col gap-4">
       <form onSubmit={handleSubmit(onSubmit)} className="flex items-end gap-2" noValidate>
-        <div>
-          <label htmlFor="nombre-tipo-gasto" className="block text-sm">
-            Nombre
-          </label>
-          <input
-            id="nombre-tipo-gasto"
-            className="rounded border px-3 py-2"
-            {...register("nombre")}
-          />
-          {errors.nombre && (
-            <p role="alert" className="text-sm text-red-600">
-              {errors.nombre.message}
-            </p>
-          )}
-        </div>
-        <div>
-          <label htmlFor="clasificacion" className="block text-sm">
-            Clasificación
-          </label>
-          <select
-            id="clasificacion"
-            defaultValue=""
-            className="rounded border px-3 py-2"
-            {...register("clasificacion")}
-          >
+        <FormField htmlFor="nombre-tipo-gasto" label="Nombre" error={errors.nombre?.message}>
+          <Input id="nombre-tipo-gasto" {...register("nombre")} />
+        </FormField>
+        <FormField htmlFor="clasificacion" label="Clasificación" error={errors.clasificacion?.message}>
+          <Select id="clasificacion" defaultValue="" {...register("clasificacion")}>
             <option value="" disabled>
               Elegí una clasificación
             </option>
-            {OPCIONES_CLASIFICACION[ambito].map((opcion) => (
+            {OPCIONES_CLASIFICACION.map((opcion) => (
               <option key={opcion} value={opcion}>
                 {opcion}
               </option>
             ))}
-          </select>
-          {errors.clasificacion && (
-            <p role="alert" className="text-sm text-red-600">
-              {errors.clasificacion.message}
-            </p>
-          )}
-        </div>
-        <button
-          type="submit"
-          disabled={isSubmitting || !isValid}
-          className="rounded bg-emerald-600 px-4 py-2 text-white disabled:opacity-50"
-        >
+          </Select>
+        </FormField>
+        <Button type="submit" disabled={isSubmitting || !isValid}>
           Agregar tipo de gasto
-        </button>
+        </Button>
       </form>
 
       {serverMessage && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {serverMessage}
         </p>
       )}
 
       <ul className="flex flex-col gap-2">
         {tiposGasto?.map((t) => (
-          <li key={t.id} className="flex items-center justify-between rounded border px-4 py-2">
+          <li key={t.id} className="flex items-center justify-between rounded border border-default px-4 py-2">
             <p className="font-medium">{t.nombre}</p>
-            <p className="text-xs text-gray-500">{t.clasificacion}</p>
+            <p className="text-xs text-muted">{t.clasificacion}</p>
           </li>
         ))}
       </ul>

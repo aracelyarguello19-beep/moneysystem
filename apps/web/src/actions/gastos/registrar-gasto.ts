@@ -33,7 +33,7 @@ export const registrarGasto = withErrorHandling(
         data: {
           cuentaId: cuenta.id,
           negocioId,
-          ambito: "LABORAL",
+          ambito: parsed.ambito,
           tipoGastoId: parsed.tipoGastoId,
           monto: parsed.monto,
           monedaId: parsed.monedaId,

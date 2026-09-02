@@ -18,14 +18,14 @@ export const crearTipoGasto = withErrorHandling(async (input: unknown): Promise<
       data: {
         cuentaId: cuenta.id,
         negocioId: parsed.negocioId,
-        ambito: parsed.ambito,
+        ambito: "LABORAL",
         nombre: parsed.nombre,
         clasificacion: parsed.clasificacion,
       },
     })
   );
 
-  revalidatePath(parsed.ambito === "LABORAL" ? "/laboral/configuracion" : "/personal/configuracion");
+  revalidatePath("/laboral/configuracion");
 
   return {
     id: tipoGasto.id,

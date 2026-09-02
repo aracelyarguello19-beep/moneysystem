@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   assertTipoGastoFinanciero,
   assertTipoGastoLaboral,
-  assertTipoGastoPersonal,
   obtenerClasificacionGasto,
   TipoGastoAmbitoInvalidoError,
   TipoGastoClasificacionInvalidaError,
@@ -15,18 +14,6 @@ describe("assertTipoGastoLaboral", () => {
 
   it("lanza para un TipoGasto PERSONAL", () => {
     expect(() => assertTipoGastoLaboral({ ambito: "PERSONAL" })).toThrow(
-      TipoGastoAmbitoInvalidoError
-    );
-  });
-});
-
-describe("assertTipoGastoPersonal", () => {
-  it("no lanza para un TipoGasto PERSONAL (Fijo, Variable o Financiero)", () => {
-    expect(() => assertTipoGastoPersonal({ ambito: "PERSONAL" })).not.toThrow();
-  });
-
-  it("lanza para un TipoGasto LABORAL", () => {
-    expect(() => assertTipoGastoPersonal({ ambito: "LABORAL" })).toThrow(
       TipoGastoAmbitoInvalidoError
     );
   });

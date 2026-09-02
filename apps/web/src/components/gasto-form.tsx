@@ -7,6 +7,11 @@ import { listarGastos } from "@/actions/gastos/listar-gastos";
 import { listarTiposGasto } from "@/actions/catalogos/listar-tipos-gasto";
 import { listarMonedas } from "@/actions/catalogos/listar-monedas";
 import { CuentaFinancieraSelect } from "@/components/cuenta-financiera-select";
+import { emitirInventarioCambiado } from "@/lib/inventario-events";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 const FORMAS_PAGO: Gasto["formaPago"][] = ["EFECTIVO", "BANCO", "TARJETA"];
 
@@ -21,6 +26,7 @@ export function GastoForm({ negocioId }: { negocioId: string }) {
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [ambito, setAmbito] = useState<Gasto["ambito"]>("NEGOCIO");
   const [tipoGastoId, setTipoGastoId] = useState("");
   const [monto, setMonto] = useState("");
   const [monedaId, setMonedaId] = useState("");
@@ -55,6 +61,7 @@ export function GastoForm({ negocioId }: { negocioId: string }) {
     setIsSubmitting(true);
 
     const result = await registrarGasto(negocioId, {
+      ambito,
       tipoGastoId,
       monto,
       monedaId,
@@ -70,11 +77,12 @@ export function GastoForm({ negocioId }: { negocioId: string }) {
     }
     setMonto("");
     await cargar();
+    emitirInventarioCambiado();
   }
 
   if (tiposGasto.length === 0) {
     return (
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-muted">
         No hay tipos de gasto en el catálogo de este negocio todavía. Creá uno en la
         configuración antes de registrar un gasto.
       </p>
@@ -84,82 +92,73 @@ export function GastoForm({ negocioId }: { negocioId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
-        <div>
-          <label htmlFor="tipo-gasto-gasto" className="block text-sm">
-            Tipo de gasto
-          </label>
-          <select
+        <FormField htmlFor="ambito-gasto" label="Ámbito">
+          <Select
+            id="ambito-gasto"
+            value={ambito}
+            onChange={(e) => setAmbito(e.target.value as Gasto["ambito"])}
+          >
+            <option value="NEGOCIO">Negocio</option>
+            <option value="PERSONAL">Personal</option>
+          </Select>
+        </FormField>
+        <FormField htmlFor="tipo-gasto-gasto" label="Tipo de gasto">
+          <Select
             id="tipo-gasto-gasto"
             value={tipoGastoId}
             onChange={(e) => setTipoGastoId(e.target.value)}
-            className="rounded border px-2 py-2"
           >
             {tiposGasto.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.nombre} ({t.clasificacion})
               </option>
             ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="monto-gasto" className="block text-sm">
-            Monto
-          </label>
-          <input
+          </Select>
+        </FormField>
+        <FormField htmlFor="monto-gasto" label="Monto">
+          <Input
             id="monto-gasto"
             value={monto}
             onChange={(e) => setMonto(e.target.value)}
             required
-            className="w-28 rounded border px-3 py-2"
+            className="w-28"
           />
-        </div>
-        <div>
-          <label htmlFor="moneda-gasto" className="block text-sm">
-            Moneda
-          </label>
-          <select
+        </FormField>
+        <FormField htmlFor="moneda-gasto" label="Moneda">
+          <Select
             id="moneda-gasto"
             value={monedaId}
             onChange={(e) => setMonedaId(e.target.value)}
-            className="rounded border px-2 py-2"
           >
             {monedas.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.codigo}
               </option>
             ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="fecha-gasto" className="block text-sm">
-            Fecha
-          </label>
-          <input
+          </Select>
+        </FormField>
+        <FormField htmlFor="fecha-gasto" label="Fecha">
+          <Input
             id="fecha-gasto"
             type="date"
             value={fecha}
             onChange={(e) => setFecha(e.target.value)}
             required
-            className="rounded border px-3 py-2"
           />
-        </div>
-        <div>
-          <label htmlFor="forma-pago-gasto" className="block text-sm">
-            Forma de pago
-          </label>
-          <select
+        </FormField>
+        <FormField htmlFor="forma-pago-gasto" label="Forma de pago">
+          <Select
             id="forma-pago-gasto"
             value={formaPago}
             onChange={(e) => setFormaPago(e.target.value as Gasto["formaPago"])}
-            className="rounded border px-2 py-2"
           >
             {FORMAS_PAGO.map((fp) => (
               <option key={fp} value={fp}>
                 {fp}
               </option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </FormField>
         <CuentaFinancieraSelect
           id="cuenta-financiera-gasto"
           negocioId={negocioId}
@@ -168,28 +167,25 @@ export function GastoForm({ negocioId }: { negocioId: string }) {
           onChange={setCuentaFinancieraId}
           label="Cuenta financiera"
         />
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded bg-emerald-600 px-4 py-2 text-white disabled:opacity-50"
-        >
+        <Button type="submit" disabled={isSubmitting}>
           Registrar gasto
-        </button>
+        </Button>
       </form>
 
       {serverMessage && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {serverMessage}
         </p>
       )}
 
       <ul className="flex flex-col gap-2">
         {gastos.map((g) => (
-          <li key={g.id} className="flex items-center justify-between rounded border px-4 py-2 text-sm">
+          <li key={g.id} className="flex items-center justify-between rounded border border-default px-4 py-2 text-sm">
             <span>
-              {g.tipoGastoNombre} · {g.fecha.toString().slice(0, 10)}
+              {g.tipoGastoNombre} · {g.fecha.toString().slice(0, 10)}{" "}
+              <span className="text-xs text-muted">({g.ambito === "PERSONAL" ? "Personal" : "Negocio"})</span>
             </span>
-            <span className="text-gray-500">
+            <span className="text-muted">
               {g.monto} · {g.clasificacion}
             </span>
           </li>

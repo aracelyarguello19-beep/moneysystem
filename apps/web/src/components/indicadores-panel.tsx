@@ -2,21 +2,30 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { IndicadoresFinancieros } from "@repo/domain";
-import { obtenerIndicadores } from "@/actions/indicadores/obtener-indicadores";
+import { obtenerDashboard, type DashboardData } from "@/actions/indicadores/obtener-dashboard";
+import { DateRangePicker } from "@/components/date-range-picker";
+import { StatCard } from "@/components/ui/stat-card";
+import { Icon } from "@/components/ui/icon";
+import { VentasVsGastosChart } from "@/components/ventas-vs-gastos-chart";
+import { AlertasCriticas } from "@/components/alertas-criticas";
+import { ActividadReciente } from "@/components/actividad-reciente";
+import { useInventarioCambiado } from "@/lib/inventario-events";
 
-type ClaveTotal = Exclude<keyof IndicadoresFinancieros, "desglose">;
+// CSV (Costo de Servicios Vendidos) y el desglose Producto/Servicio se
+// quitaron junto con la sesión de Servicios — el sistema es exclusivo de
+// productos. `cmv` y el resto de las métricas siguen intactas.
+type ClaveTotal = Exclude<keyof IndicadoresFinancieros, "desglose" | "csv">;
 
-const ETIQUETAS: Record<ClaveTotal, string> = {
-  ingresosBrutos: "Ingresos Brutos",
-  ingresosNetos: "Ingresos Netos",
-  cmv: "CMV",
-  csv: "CSV",
-  gananciaBruta: "Ganancia Bruta",
-  gastosOperativos: "Gastos Operativos",
-  resultadoOperativo: "Resultado Operativo",
-  gastosFinancieros: "Gastos Financieros",
-  gananciaLiquida: "Ganancia Líquida",
-  margenGanancia: "Margen de Ganancia",
+const METRICAS: Record<ClaveTotal, { label: string; icon: string; tone: "primary" | "danger" | "warning" | "neutral" }> = {
+  ingresosBrutos: { label: "Ingresos Brutos", icon: "payments", tone: "primary" },
+  ingresosNetos: { label: "Ingresos Netos", icon: "account_balance_wallet", tone: "primary" },
+  cmv: { label: "CMV", icon: "inventory_2", tone: "neutral" },
+  gananciaBruta: { label: "Ganancia Bruta", icon: "trending_up", tone: "primary" },
+  gastosOperativos: { label: "Gastos Operativos", icon: "receipt_long", tone: "danger" },
+  resultadoOperativo: { label: "Resultado Operativo", icon: "balance", tone: "primary" },
+  gastosFinancieros: { label: "Gastos Financieros", icon: "account_balance", tone: "danger" },
+  gananciaLiquida: { label: "Ganancia Líquida", icon: "emoji_events", tone: "primary" },
+  margenGanancia: { label: "Margen de Ganancia", icon: "query_stats", tone: "warning" },
 };
 
 function primerDiaDelMes(): string {
@@ -24,20 +33,23 @@ function primerDiaDelMes(): string {
   return new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0, 10);
 }
 
-// AC1/AC2/AC4 (Story 5.1) + AC1/AC2/AC3 (Story 5.2): cadena de indicadores
-// del negocio activo para un período filtrable, con desglose Producto vs.
-// Servicio, recalculada bajo demanda (sin React Query, no está en el stack)
-// al cambiar el período o al presionar "Actualizar".
+// Dashboard del negocio activo — mismo bento de "Dashboard Operativo
+// Centralizado" (Stitch): 4 KPI principales + gráfico Ventas vs Gastos a la
+// izquierda, Alertas Críticas + Actividad Reciente a la derecha, y debajo el
+// detalle completo de indicadores + resumen de Caja. Todo se pide en UNA
+// sola llamada (`obtenerDashboard`, una transacción) en vez de 9 Server
+// Actions independientes — cada una pagaba su propio handshake de RLS
+// contra Supabase (remoto), que dominaba el tiempo de carga percibido.
 export function IndicadoresPanel({ negocioId }: { negocioId: string }) {
   const [desde, setDesde] = useState(primerDiaDelMes);
   const [hasta, setHasta] = useState(() => new Date().toISOString().slice(0, 10));
-  const [indicadores, setIndicadores] = useState<IndicadoresFinancieros | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
-    const result = await obtenerIndicadores(negocioId, { desde, hasta });
+    const result = await obtenerDashboard(negocioId, { desde, hasta });
     if (result.ok) {
-      setIndicadores(result.data);
+      setData(result.data);
       setMensaje(null);
     } else {
       setMensaje(result.error.message);
@@ -48,77 +60,114 @@ export function IndicadoresPanel({ negocioId }: { negocioId: string }) {
     cargar();
   }, [cargar]);
 
+  useInventarioCambiado(cargar);
+
+  const claves = Object.keys(METRICAS) as ClaveTotal[];
+  const indicadores = data?.indicadores ?? null;
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-end gap-2">
-        <div>
-          <label htmlFor="desde" className="block text-sm">
-            Desde
-          </label>
-          <input
-            id="desde"
-            type="date"
-            value={desde}
-            onChange={(e) => setDesde(e.target.value)}
-            className="rounded border px-3 py-2"
-          />
-        </div>
-        <div>
-          <label htmlFor="hasta" className="block text-sm">
-            Hasta
-          </label>
-          <input
-            id="hasta"
-            type="date"
-            value={hasta}
-            onChange={(e) => setHasta(e.target.value)}
-            className="rounded border px-3 py-2"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={cargar}
-          className="rounded bg-emerald-600 px-4 py-2 text-white"
-        >
-          Actualizar
-        </button>
-      </div>
+    <div className="flex flex-col gap-8">
+      <DateRangePicker
+        value={{ desde, hasta }}
+        onChange={(rango) => {
+          setDesde(rango.desde);
+          setHasta(rango.hasta);
+        }}
+      />
 
       {mensaje && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {mensaje}
         </p>
       )}
 
-      {indicadores && (
-        <>
-          <dl className="grid grid-cols-2 gap-x-8 gap-y-2 sm:grid-cols-3">
-            {(Object.keys(ETIQUETAS) as ClaveTotal[]).map((clave) => (
-              <div key={clave}>
-                <dt className="text-xs text-gray-500">{ETIQUETAS[clave]}</dt>
-                <dd className="text-lg font-medium">{indicadores[clave]}</dd>
-              </div>
-            ))}
-          </dl>
-
-          <div>
-            <h2 className="mb-2 text-sm font-medium text-gray-500">
-              Desglose Producto vs. Servicio
-            </h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded border p-3">
-                <p className="text-xs text-gray-500">Producto</p>
-                <p className="text-sm">CMV: {indicadores.desglose.producto.cmv}</p>
-                <p className="text-sm">Ganancia Bruta: {indicadores.desglose.producto.gananciaBruta}</p>
-              </div>
-              <div className="rounded border p-3">
-                <p className="text-xs text-gray-500">Servicio</p>
-                <p className="text-sm">CSV: {indicadores.desglose.servicio.csv}</p>
-                <p className="text-sm">Ganancia Bruta: {indicadores.desglose.servicio.gananciaBruta}</p>
-              </div>
-            </div>
+      {/* Bento principal — mismo layout 8/4 que Stitch */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="flex flex-col gap-4 lg:col-span-8">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <StatCard
+              icon={<Icon name="payments" />}
+              tone="primary"
+              label="Ventas del período"
+              value={indicadores?.ingresosBrutos ?? "0"}
+            />
+            <StatCard
+              icon={<Icon name="query_stats" />}
+              tone="warning"
+              label="Margen de ganancia"
+              value={indicadores ? `${Number(indicadores.margenGanancia).toFixed(1)}%` : "0%"}
+            />
+            <StatCard
+              icon={<Icon name="inventory_2" />}
+              tone="neutral"
+              label="Valor de inventario"
+              value={data?.valorInventario ?? "0"}
+            />
+            <StatCard
+              icon={<Icon name="receipt_long" />}
+              tone="danger"
+              label="Gastos operativos"
+              value={indicadores?.gastosOperativos ?? "0"}
+            />
           </div>
-        </>
+
+          <VentasVsGastosChart puntos={data?.tendenciaMensual ?? []} />
+        </div>
+
+        <div className="flex flex-col gap-4 lg:col-span-4">
+          <AlertasCriticas items={data?.items ?? []} cuentasPorCobrar={data?.cuentasPorCobrar ?? []} />
+          <ActividadReciente movimientos={data?.movimientosRecientes ?? []} />
+        </div>
+      </div>
+
+      {data && (data.saldosPorMoneda.length > 0 || data.metaMinimaDiaria) && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">Caja</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {data.saldosPorMoneda.map((s) => (
+              <StatCard
+                key={s.codigo}
+                icon={<Icon name="account_balance_wallet" />}
+                tone="primary"
+                label={`Caja (${s.codigo})`}
+                value={s.total}
+              />
+            ))}
+            {data.metaMinimaDiaria && (
+              <StatCard
+                icon={<Icon name="track_changes" />}
+                tone="warning"
+                label="Meta mínima diaria"
+                value={data.metaMinimaDiaria}
+              />
+            )}
+          </div>
+        </section>
+      )}
+
+      {indicadores && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
+            Resultado del período
+          </h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {claves.map((clave) => (
+              <StatCard
+                key={clave}
+                spotlight={clave === "gananciaLiquida"}
+                className={clave === "gananciaLiquida" ? "bg-success" : undefined}
+                icon={<Icon name={METRICAS[clave].icon} />}
+                tone={METRICAS[clave].tone}
+                label={METRICAS[clave].label}
+                value={
+                  clave === "margenGanancia"
+                    ? `${Number(indicadores[clave]).toFixed(1)}%`
+                    : `${indicadores[clave]}`
+                }
+              />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

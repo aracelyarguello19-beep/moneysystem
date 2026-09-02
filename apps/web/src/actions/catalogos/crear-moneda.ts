@@ -18,14 +18,14 @@ export const crearMoneda = withErrorHandling(async (input: unknown): Promise<Mon
       data: {
         cuentaId: cuenta.id,
         negocioId: parsed.negocioId,
-        ambito: parsed.ambito,
+        ambito: "LABORAL",
         codigo: parsed.codigo,
         nombre: parsed.nombre,
       },
     })
   );
 
-  revalidatePath(parsed.ambito === "LABORAL" ? "/laboral/configuracion" : "/personal/configuracion");
+  revalidatePath("/laboral/configuracion");
 
   return {
     id: moneda.id,

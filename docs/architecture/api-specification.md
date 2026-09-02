@@ -47,7 +47,7 @@ export async function obtenerDashboardConsolidado(
 ```yaml
 openapi: 3.0.0
 info:
-  title: Sistema de Control Financiero — Route Handlers
+  title: Money System — Route Handlers
   version: 1.0.0
   description: Los dos únicos endpoints HTTP del sistema fuera de Server Actions.
 servers:

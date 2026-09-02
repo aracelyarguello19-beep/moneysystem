@@ -1,0 +1,85 @@
+# Design tokens — Sistema de Control Financiero
+# Fuente de verdad semántica. Se materializan como CSS custom properties
+# en src/app/globals.css (@theme) y quedan disponibles como utilidades
+# de Tailwind v4 (ej: bg-primary, text-danger, border-default).
+#
+# Extraídos del audit de patrones existentes (outputs/design-system/sistema-financiero/audit/pattern-inventory.json):
+# la paleta ya era consistente en el código (emerald=acción, red=peligro,
+# amber=advertencia, gray=neutro) — este archivo la formaliza, no la cambia.
+
+color:
+  primary:
+    value: "var(--color-emerald-600)"
+    hover: "var(--color-emerald-700)"
+    subtle: "var(--color-emerald-50)"
+    description: "Acción principal / positivo financiero (ingresos, saldo a favor, confirmar)"
+  danger:
+    value: "var(--color-red-600)"
+    hover: "var(--color-red-700)"
+    subtle: "var(--color-red-50)"
+    description: "Peligro, errores, gastos, eliminar, saldo negativo"
+  warning:
+    value: "var(--color-amber-600)"
+    subtle: "var(--color-amber-100)"
+    text: "var(--color-amber-800)"
+    description: "Advertencias, estados pendientes/por vencer"
+  neutral:
+    bg: "var(--color-gray-50)"
+    border: "var(--color-gray-300)"
+    text: "var(--color-gray-700)"
+    text_muted: "var(--color-gray-500)"
+    text_subtle: "var(--color-gray-400)"
+    description: "Superficies, bordes y texto secundario"
+
+radius:
+  default: "0.25rem" # equivalente a `rounded` — usado 118 veces en el audit
+  lg: "0.5rem" # cards / paneles
+
+spacing:
+  note: >
+    Se usa la escala default de Tailwind (múltiplos de 0.25rem). El audit
+    detectó un patrón de facto ya consistente: px-3/px-4 en controles,
+    py-2 en inputs/botones, gap-2/gap-4 entre elementos de formulario,
+    p-8 como padding de página. No se introducen tokens de spacing
+    custom — se documentan como convención de uso.
+  control_x: "0.75rem" # px-3
+  control_y: "0.5rem" # py-2
+  page_padding: "2rem" # p-8
+  stack_gap: "1rem" # gap-4
+
+typography:
+  note: "Escala default de Tailwind. Sin font-family custom (usa system font de Next)."
+  size_body: "text-sm"
+  size_caption: "text-xs"
+  size_heading: "text-xl"
+  weight_label: "font-medium"
+  weight_heading: "font-semibold"
+
+surface:
+  note: >
+    Tokens nuevos (no vienen del audit, que sólo cubría color de acento) para
+    poder tener tema dark sin tocar componentes: los átomos usan bg-surface,
+    bg-surface-elevated y text-ink en vez de bg-white/text-black crudos.
+  surface: "#ffffff" # fondo de página
+  surface_elevated: "#ffffff" # fondo de cards/paneles
+  ink: "var(--color-gray-900)" # texto principal
+
+dark_theme:
+  note: >
+    Activado togglenado la clase `.dark` en <html> (ver
+    components/ui/theme-toggle.tsx). Inspirado en dashboards financieros
+    de referencia (fondo casi negro, cards gris-900, acento sólido en el
+    KPI principal). Mismos nombres de token que el tema light — sólo
+    cambia el valor, los componentes no se tocan.
+  surface: "var(--color-gray-950)"
+  surface_elevated: "var(--color-gray-900)"
+  ink: "var(--color-gray-50)"
+  primary: "var(--color-emerald-500)" # un tono más claro que light (600) para contraste sobre fondo oscuro
+  primary_subtle: "var(--color-emerald-950)"
+  danger: "var(--color-red-500)"
+  danger_subtle: "var(--color-red-950)"
+  warning: "var(--color-amber-500)"
+  warning_subtle: "var(--color-amber-950)"
+  warning_text: "var(--color-amber-300)"
+  neutral_bg: "var(--color-gray-800)"
+  neutral_border: "var(--color-gray-800)"

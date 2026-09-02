@@ -1,8 +1,8 @@
-# Sistema de Control Financiero (Personal + Laboral, Multi-Negocio) — Fullstack Architecture Document
+# Money System (Personal + Laboral, Multi-Negocio) — Fullstack Architecture Document
 
 ## Table of Contents
 
-- [Sistema de Control Financiero (Personal + Laboral, Multi-Negocio) — Fullstack Architecture Document](#table-of-contents)
+- [Money System (Personal + Laboral, Multi-Negocio) — Fullstack Architecture Document](#table-of-contents)
   - [Introduction](./introduction.md)
     - [Starter Template or Existing Project](./introduction.md#starter-template-or-existing-project)
     - [Change Log](./introduction.md#change-log)

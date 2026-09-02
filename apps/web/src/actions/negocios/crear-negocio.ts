@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { Negocio } from "@repo/domain";
 import { crearNegocioSchema } from "@repo/domain/schemas";
-import { seedMonedaBase, withRlsContext } from "@repo/database";
+import { seedMonedaBase, seedTiposGastoDefault, withRlsContext } from "@repo/database";
 import { getCurrentAccount } from "@/lib/auth";
 import { withErrorHandling } from "@/lib/server-action-wrapper";
 
@@ -15,7 +15,7 @@ export const crearNegocio = withErrorHandling(async (input: unknown): Promise<Ne
 
   const negocio = await withRlsContext(cuenta.id, null, (tx) =>
     tx.negocio.create({
-      data: { cuentaId: cuenta.id, nombre: parsed.nombre },
+      data: { cuentaId: cuenta.id, nombre: parsed.nombre, tipo: parsed.tipo },
     })
   );
 
@@ -23,9 +23,10 @@ export const crearNegocio = withErrorHandling(async (input: unknown): Promise<Ne
   // creación del negocio. Va en una segunda transacción RLS porque la policy
   // de `monedas` exige `app.active_negocio_id` == negocio_id de la fila
   // insertada, y ese id recién se conoce después de crear el negocio.
-  await withRlsContext(cuenta.id, negocio.id, (tx) =>
-    seedMonedaBase(tx, { cuentaId: cuenta.id, negocioId: negocio.id, ambito: "LABORAL" })
-  );
+  await withRlsContext(cuenta.id, negocio.id, async (tx) => {
+    await seedMonedaBase(tx, { cuentaId: cuenta.id, negocioId: negocio.id, ambito: "LABORAL" });
+    await seedTiposGastoDefault(tx, { cuentaId: cuenta.id, negocioId: negocio.id });
+  });
 
   revalidatePath("/negocios");
 
@@ -33,6 +34,7 @@ export const crearNegocio = withErrorHandling(async (input: unknown): Promise<Ne
     id: negocio.id,
     cuentaId: negocio.cuentaId,
     nombre: negocio.nombre,
+    tipo: negocio.tipo as Negocio["tipo"],
     estado: negocio.estado as Negocio["estado"],
     createdAt: negocio.createdAt,
     archivedAt: negocio.archivedAt,

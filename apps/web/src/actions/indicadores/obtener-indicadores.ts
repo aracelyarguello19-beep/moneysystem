@@ -40,7 +40,10 @@ export const obtenerIndicadores = withErrorHandling(
             cantidadDevuelta: vi.cantidadDevuelta.toString(),
             precioUnitario: vi.precioUnitario.toString(),
             costoServicio: vi.costoServicio?.toString() ?? null,
-            costoCompra: vi.item.costoCompra?.toString() ?? null,
+            // Costo congelado al momento de la venta (ver migración
+            // 20260901200000_venta_item_costo_unitario) — cae al costo
+            // actual del catálogo solo para filas anteriores a esa columna.
+            costoCompra: vi.costoUnitario?.toString() ?? vi.item.costoCompra?.toString() ?? null,
           })),
         })),
         gastos: gastos.map((g) => ({

@@ -7,16 +7,11 @@ import { withRlsContext } from "@repo/database";
 import { getCurrentAccount } from "@/lib/auth";
 import { withErrorHandling } from "@/lib/server-action-wrapper";
 
-// AC1: solo CAJA/BANCO se crean por esta vía — TARJETA se gestiona en
-// Story 4.2 (pasivo, no liquidez). Por ahora no hay una Server Action
-// dedicada a crear tarjetas (no pedida explícitamente por ninguna story);
-// se pueden crear con el mismo mecanismo de datos si una story futura lo
-// requiere, ampliando este schema.
-// `negocioId: null` (Story 6.3) crea la cuenta CAJA/BANCO de Personal —
-// mismo criterio que `listarMonedas`/`listarTiposGasto`, generalizado acá
-// para que Personal tenga dónde reflejar sus gastos sin cuenta financiera.
+// Punto único de creación para los 4 tipos de cuenta de Caja (Efectivo,
+// Banco, Tarjeta de crédito, Otro) — reemplaza a `crearTarjeta`, que
+// duplicaba este mismo mecanismo solo para TARJETA.
 export const crearCuentaFinanciera = withErrorHandling(
-  async (negocioId: string | null, input: unknown): Promise<CuentaFinanciera> => {
+  async (negocioId: string, input: unknown): Promise<CuentaFinanciera> => {
     const parsed = crearCuentaFinancieraSchema.parse(input);
     const cuenta = await getCurrentAccount();
     if (!cuenta) throw new Error("No hay sesión activa");
@@ -26,23 +21,28 @@ export const crearCuentaFinanciera = withErrorHandling(
         data: {
           cuentaId: cuenta.id,
           negocioId,
-          ambito: negocioId ? "LABORAL" : "PERSONAL",
           tipo: parsed.tipo,
           nombre: parsed.nombre,
           monedaId: parsed.monedaId,
+          banco: parsed.banco ?? null,
+          alias: parsed.alias ?? null,
+          detalleOtro: parsed.detalleOtro ?? null,
+          limiteCredito: parsed.limiteCredito ?? null,
         },
       })
     );
 
-    revalidatePath(negocioId ? "/laboral/saldos" : "/personal/gastos");
+    revalidatePath("/laboral/caja");
 
     return {
       id: cuentaFinanciera.id,
       cuentaId: cuentaFinanciera.cuentaId,
       negocioId: cuentaFinanciera.negocioId,
-      ambito: cuentaFinanciera.ambito as CuentaFinanciera["ambito"],
       tipo: cuentaFinanciera.tipo as CuentaFinanciera["tipo"],
       nombre: cuentaFinanciera.nombre,
+      banco: cuentaFinanciera.banco,
+      alias: cuentaFinanciera.alias,
+      detalleOtro: cuentaFinanciera.detalleOtro,
       monedaId: cuentaFinanciera.monedaId,
       saldoActual: cuentaFinanciera.saldoActual.toString(),
       limiteCredito: cuentaFinanciera.limiteCredito?.toString() ?? null,

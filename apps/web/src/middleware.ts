@@ -18,6 +18,7 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute =
     request.nextUrl.pathname === "/" ||
     request.nextUrl.pathname.startsWith("/api/health") ||
+    request.nextUrl.pathname.startsWith("/design-system") ||
     isAuthRoute;
 
   if (!user && !isPublicRoute) {

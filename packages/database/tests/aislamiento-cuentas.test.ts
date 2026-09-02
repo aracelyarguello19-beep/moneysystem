@@ -78,7 +78,6 @@ describe.skipIf(!hayCuentas)("Story 1.3 — aislamiento entre cuentas (Postgres 
       "cuentas_por_cobrar",
       "gastos",
       "movimientos_cuenta",
-      "retiros_utilidad",
     ];
 
     const filas = await prisma.$queryRawUnsafe<
@@ -137,7 +136,6 @@ describe.skipIf(!hayCuentas)("Story 1.3 — aislamiento entre cuentas (Postgres 
       cuentaPorCobrar: await tx.cuentaPorCobrar.findUnique({
         where: { id: negocioB.cuentaPorCobrarId },
       }),
-      retiro: await tx.retiroUtilidad.findUnique({ where: { id: negocioB.retiroId } }),
       tasa: await tx.tasaCambio.findUnique({ where: { id: negocioB.tasaCambioId } }),
       cuenta: await tx.cuenta.findUnique({ where: { id: cuentaB } }),
     }));

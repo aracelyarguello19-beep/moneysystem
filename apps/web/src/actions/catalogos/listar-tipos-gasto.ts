@@ -8,7 +8,7 @@ import { withErrorHandling } from "@/lib/server-action-wrapper";
 // `negocioId` viaja explícito desde la UI, nunca implícito.
 // [Source: architecture/coding-standards.md#Critical Fullstack Rules]
 export const listarTiposGasto = withErrorHandling(
-  async (negocioId: string | null): Promise<TipoGasto[]> => {
+  async (negocioId: string): Promise<TipoGasto[]> => {
     const cuenta = await getCurrentAccount();
     if (!cuenta) throw new Error("No hay sesión activa");
 

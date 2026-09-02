@@ -13,7 +13,7 @@ class MonedaBaseError extends Error {}
 // colapsaría ambos casos en el mismo `DATABASE_ERROR`.
 export async function desactivarMoneda(
   monedaId: string,
-  negocioId: string | null
+  negocioId: string
 ): Promise<Result<Moneda>> {
   const requestId = crypto.randomUUID();
   const timestamp = new Date().toISOString();
@@ -34,7 +34,7 @@ export async function desactivarMoneda(
       return tx.moneda.update({ where: { id: monedaId }, data: { activa: false } });
     });
 
-    revalidatePath(negocioId ? "/laboral/configuracion" : "/personal/configuracion");
+    revalidatePath("/laboral/configuracion");
 
     return {
       ok: true,

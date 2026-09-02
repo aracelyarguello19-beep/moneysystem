@@ -25,11 +25,13 @@ export const crearItem = withErrorHandling(
           monedaId: parsed.monedaId,
           costoCompra: parsed.costoCompra,
           stockActual: parsed.stockActual,
+          imagenUrl: parsed.imagenUrl ?? null,
         },
       })
     );
 
-    revalidatePath("/laboral/catalogo");
+    revalidatePath("/laboral/inventario");
+    revalidatePath("/laboral/servicios");
 
     return {
       id: item.id,
@@ -41,6 +43,7 @@ export const crearItem = withErrorHandling(
       costoCompra: item.costoCompra?.toString() ?? null,
       stockActual: item.stockActual.toString(),
       tieneMovimientos: item.tieneMovimientos,
+      imagenUrl: item.imagenUrl,
     };
   }
 );

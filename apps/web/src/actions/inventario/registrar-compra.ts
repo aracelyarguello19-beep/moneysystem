@@ -100,7 +100,7 @@ export const registrarCompra = withErrorHandling(
 
     revalidatePath("/laboral/compras");
     revalidatePath("/laboral/indicadores");
-    revalidatePath("/laboral/catalogo");
+    revalidatePath("/laboral/inventario");
 
     return {
       id: compra.id,
@@ -114,6 +114,7 @@ export const registrarCompra = withErrorHandling(
       cuentaFinancieraId: compra.cuentaFinancieraId,
       monedaId: compra.monedaId,
       tasaCambioId: compra.tasaCambioId,
+      afectaInventario: compra.afectaInventario,
     };
   }
 );

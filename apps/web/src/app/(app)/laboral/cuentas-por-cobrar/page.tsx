@@ -11,7 +11,7 @@ export default function CuentasPorCobrarPage() {
       <h1 className="text-xl font-semibold">Cuentas por cobrar</h1>
 
       {!negocioActivoId ? (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-muted">
           Seleccioná un negocio activo para ver sus cuentas por cobrar.
         </p>
       ) : (

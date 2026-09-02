@@ -29,5 +29,6 @@ export const listarItems = withErrorHandling(async (negocioId: string): Promise<
     costoCompra: item.costoCompra?.toString() ?? null,
     stockActual: item.stockActual.toString(),
     tieneMovimientos: item.tieneMovimientos,
+    imagenUrl: item.imagenUrl,
   }));
 });

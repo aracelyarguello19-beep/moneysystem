@@ -20,6 +20,7 @@ datasource db {
 model Cuenta {
   id        String   @id @db.Uuid
   email     String
+  nombre    String?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   negocios           Negocio[]
@@ -30,10 +31,9 @@ model Cuenta {
   ventas             Venta[]
   cuentasPorCobrar   CuentaPorCobrar[]
   gastos             Gasto[]
+  gastosFijos        GastoFijo[]
   cuentasFinancieras CuentaFinanciera[]
   tasasCambio        TasaCambio[]
-  retirosUtilidad    RetiroUtilidad[]
-  reservaFinanciera  ReservaFinanciera?
 
   @@map("cuentas")
 }
@@ -46,6 +46,7 @@ model Negocio {
   id         String    @id @default(uuid()) @db.Uuid
   cuentaId   String    @map("cuenta_id") @db.Uuid
   nombre     String
+  tipo       String    @default("MIXTO")
   estado     String    @default("ACTIVO")
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
   archivedAt DateTime? @map("archived_at") @db.Timestamptz
@@ -58,9 +59,8 @@ model Negocio {
   ventas             Venta[]
   cuentasPorCobrar   CuentaPorCobrar[]
   gastos             Gasto[]
+  gastosFijos        GastoFijo[]
   cuentasFinancieras CuentaFinanciera[]
-  retirosUtilidad    RetiroUtilidad[]
-  reglaRetiro        ReglaRetiro?
 
   @@map("negocios")
 }
@@ -89,6 +89,7 @@ model Moneda {
   compras            Compra[]
   ventas             Venta[]
   gastos             Gasto[]
+  gastosFijos        GastoFijo[]
   cuentasFinancieras CuentaFinanciera[]
   tasasCambio        TasaCambio[]
 
@@ -137,6 +138,7 @@ model Item {
   costoCompra      Decimal? @map("costo_compra") @db.Decimal(18, 4)
   stockActual      Decimal  @default(0) @map("stock_actual") @db.Decimal(18, 4)
   tieneMovimientos Boolean  @default(false) @map("tiene_movimientos")
+  imagenUrl        String?  @map("imagen_url")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   negocio    Negocio     @relation(fields: [negocioId], references: [id], onDelete: Cascade)
@@ -168,6 +170,10 @@ model Compra {
   cantidad           Decimal  @db.Decimal(18, 4)
   fecha              DateTime @default(now()) @db.Date
   proveedor          String?
+  // false = compra "sin stock" generada automáticamente por una venta libre
+  // (sobre pedido): registra el costo para el flujo de caja/balance sin
+  // sumar unidades al inventario (Story rediseño Ventas/Inventario/Caja).
+  afectaInventario   Boolean  @default(true) @map("afecta_inventario")
   formaPago          String   @map("forma_pago")
   cuentaFinancieraId String?  @map("cuenta_financiera_id") @db.Uuid
   monedaId           String   @map("moneda_id") @db.Uuid
@@ -226,7 +232,11 @@ model VentaItem {
   cantidad         Decimal? @db.Decimal(18, 4)
   precioUnitario   Decimal  @map("precio_unitario") @db.Decimal(18, 4)
   costoServicio    Decimal? @map("costo_servicio") @db.Decimal(18, 4)
+  costoUnitario    Decimal? @map("costo_unitario") @db.Decimal(18, 4)
   cantidadDevuelta Decimal  @default(0) @map("cantidad_devuelta") @db.Decimal(18, 4)
+  // true = "venta libre" (sobre pedido, fuera de inventario): el ítem solo
+  // identifica el producto/modelo, cantidad/costo/precio no descuentan stock.
+  esLibre          Boolean  @default(false) @map("es_libre")
 
   venta Venta @relation(fields: [ventaId], references: [id], onDelete: Cascade)
   item  Item  @relation(fields: [itemId], references: [id])
@@ -286,7 +296,11 @@ model PagoCxC {
 model Gasto {
   id                 String   @id @default(uuid()) @db.Uuid
   cuentaId           String   @map("cuenta_id") @db.Uuid
-  negocioId          String?  @map("negocio_id") @db.Uuid
+  negocioId          String   @map("negocio_id") @db.Uuid
+  // NEGOCIO = gasto del propio negocio (insumos, compras, publicidad, etc.);
+  // PERSONAL = gasto personal del dueño pagado con la caja del negocio
+  // (reemplaza al viejo Retiro de utilidad — mismo efecto de caja, se
+  // categoriza como gasto en vez de como un movimiento aparte).
   ambito             String
   tipoGastoId        String   @map("tipo_gasto_id") @db.Uuid
   monto              Decimal  @db.Decimal(18, 4)
@@ -297,12 +311,32 @@ model Gasto {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   cuenta           Cuenta           @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
-  negocio          Negocio?         @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  negocio          Negocio          @relation(fields: [negocioId], references: [id], onDelete: Cascade)
   tipoGasto        TipoGasto        @relation(fields: [tipoGastoId], references: [id])
   moneda           Moneda           @relation(fields: [monedaId], references: [id])
   cuentaFinanciera CuentaFinanciera @relation(fields: [cuentaFinancieraId], references: [id])
 
   @@map("gastos")
+}
+
+// Gasto recurrente (alquiler, sueldos, suscripciones, etc.) que no se
+// registra día a día como Gasto, pero cuya suma define la "meta mínima
+// diaria" del Dashboard (total de fijos ÷ 20 días hábiles).
+model GastoFijo {
+  id          String   @id @default(uuid()) @db.Uuid
+  cuentaId    String   @map("cuenta_id") @db.Uuid
+  negocioId   String   @map("negocio_id") @db.Uuid
+  nombre      String
+  monto       Decimal  @db.Decimal(18, 4)
+  monedaId    String   @map("moneda_id") @db.Uuid
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cuenta  Cuenta  @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  negocio Negocio @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  moneda  Moneda  @relation(fields: [monedaId], references: [id])
+
+  @@map("gastos_fijos")
 }
 
 // Story 4.2/4.3 — modelo unificado de Caja, Cuenta Bancaria y Tarjeta de
@@ -317,17 +351,22 @@ model Gasto {
 model CuentaFinanciera {
   id            String   @id @default(uuid()) @db.Uuid
   cuentaId      String   @map("cuenta_id") @db.Uuid
-  negocioId     String?  @map("negocio_id") @db.Uuid
-  ambito        String
+  negocioId     String   @map("negocio_id") @db.Uuid
   tipo          String
   nombre        String
+  // Solo tipo BANCO: nombre del banco (ej. "Ueno Bank") y un alias para
+  // distinguir varias cuentas del mismo banco/moneda (ej. "Cuenta 1").
+  banco         String?
+  alias         String?
+  // Solo tipo OTRO: detalle libre (reemplaza a "Otro: seguro de vida" etc.).
+  detalleOtro   String?  @map("detalle_otro")
   monedaId      String   @map("moneda_id") @db.Uuid
   saldoActual   Decimal  @default(0) @map("saldo_actual") @db.Decimal(18, 4)
   limiteCredito Decimal? @map("limite_credito") @db.Decimal(18, 4)
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   cuenta             Cuenta              @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
-  negocio            Negocio?            @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  negocio            Negocio             @relation(fields: [negocioId], references: [id], onDelete: Cascade)
   moneda             Moneda              @relation(fields: [monedaId], references: [id])
   movimientosCuenta  MovimientoCuenta[]
   movimientosTarjeta MovimientoTarjeta[]
@@ -394,75 +433,7 @@ model TasaCambio {
   @@map("tasas_cambio")
 }
 
-// Story 6.1 — puente explícito entre un negocio y Personal (FR25-FR27):
-// retiro manual (esta story) o por regla predeterminada (Story 6.2,
-// `reglaId` sin FK todavía — la tabla `reglas_retiro` no existe hasta esa
-// story, mismo criterio de deuda técnica ya aplicado en el resto del
-// proyecto). Única tabla Laboral cuya RLS es "relajada" a propósito: no
-// exige coincidencia de `negocio_id` para que Personal pueda leer los
-// retiros de TODOS los negocios de la cuenta a la vez sin necesitar el
-// bypass `'*'` restringido de Story 5.4 — ver policy en la migración.
-// [Source: architecture/data-models.md#RetiroUtilidad / ReglaRetiro, architecture/database-schema.md]
-model RetiroUtilidad {
-  id        String   @id @default(uuid()) @db.Uuid
-  cuentaId  String   @map("cuenta_id") @db.Uuid
-  negocioId String   @map("negocio_id") @db.Uuid
-  monto     Decimal  @db.Decimal(18, 4)
-  fecha     DateTime @default(now()) @db.Date
-  origen    String
-  reglaId   String?  @map("regla_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-
-  cuenta  Cuenta  @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
-  negocio Negocio @relation(fields: [negocioId], references: [id], onDelete: Cascade)
-
-  @@map("retiros_utilidad")
-}
-
-// Story 6.2 — regla de retiro predeterminado (FR26), alternativa
-// automática al retiro manual de Story 6.1. Única regla por negocio
-// (`negocioId` @unique, AC3). `ultimoPeriodoAplicado` ('YYYY-MM') es la
-// clave de idempotencia del job de cierre de período (ADR-001,
-// `.ai/adr-001-cierre-de-periodo-automatico.md`) — ya se incluye en el
-// CREATE TABLE inicial porque `regla_retiro` no existía antes de esta
-// story (a diferencia de lo que sugería el Task 2 original, no hace falta
-// un ALTER TABLE posterior).
-// [Source: architecture/data-models.md#RetiroUtilidad / ReglaRetiro, architecture/database-schema.md#REGLA DE RETIRO PREDETERMINADO]
-model ReglaRetiro {
-  id                    String   @id @default(uuid()) @db.Uuid
-  negocioId             String   @unique @map("negocio_id") @db.Uuid
-  tipo                  String
-  valor                 Decimal  @db.Decimal(18, 4)
-  periodo               String   @default("MENSUAL")
-  activa                Boolean  @default(true)
-  ultimoPeriodoAplicado String?  @map("ultimo_periodo_aplicado")
-  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
-
-  negocio Negocio @relation(fields: [negocioId], references: [id], onDelete: Cascade)
-
-  @@map("regla_retiro")
-}
-
-// Story 6.5 — objetivo de reserva financiera y aporte por período (FR31).
-// Única por cuenta (`cuentaId` @unique) — no es por negocio, vive
-// enteramente en Personal. `ultimoPeriodoAplicado` es la misma clave de
-// idempotencia que `ReglaRetiro` (ADR-001): el job de cierre de período
-// suma `aportePorPeriodo` a `progresoAcumulado` una vez por período. Pausar
-// el aporte se hace con `aportePorPeriodo = 0` (Task 1, ADR-001 punto 7) —
-// no hay campo `activa` como en `ReglaRetiro` porque ninguna AC pide un
-// endpoint de pausa explícito.
-// [Source: architecture/data-models.md#ReservaFinanciera, architecture/database-schema.md#RESERVA FINANCIERA]
-model ReservaFinanciera {
-  id                    String   @id @default(uuid()) @db.Uuid
-  cuentaId              String   @unique @map("cuenta_id") @db.Uuid
-  objetivoMonto         Decimal  @map("objetivo_monto") @db.Decimal(18, 4)
-  aportePorPeriodo      Decimal  @map("aporte_por_periodo") @db.Decimal(18, 4)
-  periodo               String   @default("MENSUAL")
-  progresoAcumulado     Decimal  @default(0) @map("progreso_acumulado") @db.Decimal(18, 4)
-  ultimoPeriodoAplicado String?  @map("ultimo_periodo_aplicado")
-  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
-
-  cuenta Cuenta @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
-
-  @@map("reserva_financiera")
-}
+// RetiroUtilidad/ReglaRetiro (retiro manual/automático hacia Personal)
+// eliminados: el retiro ahora se registra como un Gasto con
+// `ambito: "PERSONAL"` (ver Gasto arriba) — mismo efecto de caja, sin un
+// concepto aparte.

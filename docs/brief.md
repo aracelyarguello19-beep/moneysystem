@@ -1,6 +1,6 @@
 # Project Brief: Money Sistem
 
-> **Nombre del proyecto:** Money Sistem — confirmado por el usuario. Sistema de Control Financiero (Personal + Laboral, Multi-Negocio).
+> **Nombre del proyecto:** Money Sistem — confirmado por el usuario. Money System (Personal + Laboral, Multi-Negocio).
 
 ---
 
@@ -283,4 +283,4 @@ No se realizó investigación de mercado externa para este brief — el alcance 
 3. ~~Confirmar con el usuario si hay datos históricos previos... y si tiene una estimación de cuántos negocios va a manejar.~~ **Resuelto (2026-08-31):** no hay datos históricos a migrar; sin estimación de cantidad de negocios (ver Open Questions).
 
 ### PM Handoff
-Este Project Brief provee el contexto completo para el Sistema de Control Financiero (Personal + Laboral Multi-Negocio). @pm debe revisar este brief actualizado en profundidad — en particular el cambio estructural de "un solo negocio" a "uno o varios negocios por cuenta, con vista consolidada"— y actualizar el PRD (`docs/prd.md`) en consecuencia: los requisitos funcionales, el epic list y las historias que asumían un único negocio por cuenta deben revisarse para incorporar el nivel "negocio" como entidad intermedia entre cuenta y las transacciones. Relevar con el usuario si hay datos históricos a migrar antes de cerrar los requisitos funcionales finales.
+Este Project Brief provee el contexto completo para el Money System (Personal + Laboral Multi-Negocio). @pm debe revisar este brief actualizado en profundidad — en particular el cambio estructural de "un solo negocio" a "uno o varios negocios por cuenta, con vista consolidada"— y actualizar el PRD (`docs/prd.md`) en consecuencia: los requisitos funcionales, el epic list y las historias que asumían un único negocio por cuenta deben revisarse para incorporar el nivel "negocio" como entidad intermedia entre cuenta y las transacciones. Relevar con el usuario si hay datos históricos a migrar antes de cerrar los requisitos funcionales finales.

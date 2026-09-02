@@ -27,7 +27,7 @@ export const registrarVenta = withErrorHandling(
     if (!cuenta) throw new Error("No hay sesión activa");
 
     const venta = await withRlsContext(cuenta.id, negocioId, async (tx) => {
-      const itemsResueltos: { itemId: string; cantidad: string | null; precioUnitario: string; costoServicio: string | null; tipo: Item["tipo"] }[] = [];
+      const itemsResueltos: { itemId: string; cantidad: string | null; precioUnitario: string; costoServicio: string | null; costoUnitario: string | null; esLibre: boolean; tipo: Item["tipo"] }[] = [];
 
       for (const ventaItem of parsed.items) {
         const item = await tx.item.findUniqueOrThrow({ where: { id: ventaItem.itemId } });
@@ -39,6 +39,17 @@ export const registrarVenta = withErrorHandling(
           cantidad: ventaItem.cantidad,
           precioUnitario: ventaItem.precioUnitario,
           costoServicio: ventaItem.costoServicio ?? null,
+          // Congela el costo del Producto al momento de vender — nunca se
+          // vuelve a leer en vivo del catálogo (ver migración
+          // 20260901200000_venta_item_costo_unitario). En una "venta libre"
+          // (sobre pedido, fuera de inventario) el costo lo tipeó quien
+          // vende, no se lee del catálogo.
+          costoUnitario: ventaItem.esLibre
+            ? (ventaItem.costoUnitario ?? "0")
+            : tipo === "PRODUCTO"
+              ? (item.costoCompra?.toString() ?? "0")
+              : null,
+          esLibre: ventaItem.esLibre ?? false,
           tipo,
         });
       }
@@ -68,18 +79,43 @@ export const registrarVenta = withErrorHandling(
               cantidad: vi.cantidad,
               precioUnitario: vi.precioUnitario,
               costoServicio: vi.costoServicio,
+              costoUnitario: vi.costoUnitario,
+              esLibre: vi.esLibre,
             })),
           },
         },
       });
 
       for (const vi of itemsResueltos) {
-        if (vi.tipo === "PRODUCTO" && vi.cantidad) {
+        // Una línea "venta libre" nunca toca stock — es sobre pedido, no
+        // sale del inventario propio (ver Story rediseño Ventas/Inventario).
+        if (!vi.esLibre && vi.tipo === "PRODUCTO" && vi.cantidad) {
           await tx.item.update({
             where: { id: vi.itemId },
             data: {
               stockActual: { decrement: vi.cantidad },
               tieneMovimientos: true,
+            },
+          });
+        }
+
+        // El costo de una venta libre de Producto sí se registra como
+        // Compra (afectaInventario: false) para que aparezca en el flujo de
+        // caja/balance, sin sumar unidades al inventario.
+        if (vi.esLibre && vi.tipo === "PRODUCTO") {
+          await tx.compra.create({
+            data: {
+              negocioId,
+              cuentaId: cuenta.id,
+              itemId: vi.itemId,
+              costoUnitario: vi.costoUnitario ?? "0",
+              cantidad: vi.cantidad ?? "1",
+              fecha: new Date(),
+              formaPago: "CREDITO_PROVEEDOR",
+              cuentaFinancieraId: null,
+              monedaId: parsed.monedaId,
+              tasaCambioId: tasaCambio?.id ?? null,
+              afectaInventario: false,
             },
           });
         }
@@ -124,7 +160,8 @@ export const registrarVenta = withErrorHandling(
     });
 
     revalidatePath("/laboral/ventas");
-    revalidatePath("/laboral/catalogo");
+    revalidatePath("/laboral/inventario");
+    revalidatePath("/laboral/servicios");
     revalidatePath("/laboral/cuentas-por-cobrar");
     revalidatePath("/laboral/indicadores");
 

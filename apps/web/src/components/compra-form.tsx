@@ -3,15 +3,24 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Compra, Item, Moneda } from "@repo/domain";
 import { registrarCompra } from "@/actions/inventario/registrar-compra";
+import { crearItem } from "@/actions/inventario/crear-item";
 import { listarItems } from "@/actions/inventario/listar-items";
 import { listarMonedas } from "@/actions/catalogos/listar-monedas";
 import { CuentaFinancieraSelect } from "@/components/cuenta-financiera-select";
+import { emitirInventarioCambiado, useInventarioCambiado } from "@/lib/inventario-events";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
 
 const FORMAS_PAGO: Compra["formaPago"][] = ["EFECTIVO", "BANCO", "TARJETA", "CREDITO_PROVEEDOR"];
 
 // AC2: solo ítems tipo Producto aparecen como opción — un Servicio nunca se
 // ofrece en este formulario (defensa en profundidad; la Server Action lo
-// rechaza igual si llegara).
+// rechaza igual si llegara). Permite crear el producto sin salir de esta
+// pantalla (mismo patrón que Ventas): se crea con stock 0 y es la propia
+// compra la que lo carga al inventario, para no contar el stock dos veces.
 // [Source: architecture/frontend-architecture.md#Component Organization]
 export function CompraForm({ negocioId }: { negocioId: string }) {
   const [productos, setProductos] = useState<Item[]>([]);
@@ -28,6 +37,12 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
   const [formaPago, setFormaPago] = useState<Compra["formaPago"]>("EFECTIVO");
   const [cuentaFinancieraId, setCuentaFinancieraId] = useState("");
   const [monedaId, setMonedaId] = useState("");
+
+  const [creandoProducto, setCreandoProducto] = useState(false);
+  const [nuevoNombre, setNuevoNombre] = useState("");
+  const [nuevoPrecio, setNuevoPrecio] = useState("");
+  const [nuevoMensaje, setNuevoMensaje] = useState<string | null>(null);
+  const [creandoEnProgreso, setCreandoEnProgreso] = useState(false);
 
   const cargar = useCallback(async () => {
     const [itemsResult, monedasResult] = await Promise.all([
@@ -48,6 +63,34 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  useInventarioCambiado(cargar);
+
+  async function onCrearProducto() {
+    setNuevoMensaje(null);
+    setCreandoEnProgreso(true);
+    const result = await crearItem(negocioId, {
+      tipo: "PRODUCTO",
+      nombre: nuevoNombre,
+      precioVenta: nuevoPrecio || "0",
+      monedaId,
+      // Stock arranca en 0: es "Registrar compra" quien lo carga al
+      // confirmar, para no contar esta primera compra dos veces.
+      costoCompra: costoUnitario || "0",
+      stockActual: "0",
+    });
+    setCreandoEnProgreso(false);
+    if (!result.ok) {
+      setNuevoMensaje(result.error.message);
+      return;
+    }
+    await cargar();
+    emitirInventarioCambiado();
+    setItemId(result.data.id);
+    setCreandoProducto(false);
+    setNuevoNombre("");
+    setNuevoPrecio("");
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -75,120 +118,101 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
     setProveedor("");
     setCompras((prev) => [result.data, ...prev]);
     await cargar();
-  }
-
-  if (productos.length === 0) {
-    return (
-      <p className="text-sm text-gray-500">
-        No hay ítems tipo Producto en el catálogo de este negocio todavía. Creá uno en el catálogo
-        antes de registrar una compra.
-      </p>
-    );
+    emitirInventarioCambiado();
   }
 
   return (
     <div className="flex flex-col gap-4">
+      {productos.length === 0 && !creandoProducto && (
+        <p className="text-sm text-muted">
+          Todavía no tenés productos en el catálogo de este negocio. Creá el primero para
+          registrar tu primera compra.
+        </p>
+      )}
+
       <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
-        <div>
-          <label htmlFor="item-compra" className="block text-sm">
-            Producto
-          </label>
-          <select
-            id="item-compra"
-            value={itemId}
-            onChange={(e) => setItemId(e.target.value)}
-            className="rounded border px-2 py-2"
-          >
-            {productos.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="costo-unitario" className="block text-sm">
-            Costo unitario
-          </label>
-          <input
+        {productos.length > 0 && (
+          <FormField htmlFor="item-compra" label="Producto">
+            <Select id="item-compra" value={itemId} onChange={(e) => setItemId(e.target.value)}>
+              {productos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+        )}
+        <Button
+          type="button"
+          variant="link"
+          onClick={() => {
+            setCreandoProducto(true);
+            setNuevoMensaje(null);
+          }}
+        >
+          + Nuevo producto
+        </Button>
+        <FormField htmlFor="costo-unitario" label="Costo unitario">
+          <Input
             id="costo-unitario"
             value={costoUnitario}
             onChange={(e) => setCostoUnitario(e.target.value)}
             required
-            className="w-28 rounded border px-3 py-2"
+            className="w-28"
           />
-        </div>
-        <div>
-          <label htmlFor="cantidad-compra" className="block text-sm">
-            Cantidad
-          </label>
-          <input
+        </FormField>
+        <FormField htmlFor="cantidad-compra" label="Cantidad">
+          <Input
             id="cantidad-compra"
             value={cantidad}
             onChange={(e) => setCantidad(e.target.value)}
             required
-            className="w-24 rounded border px-3 py-2"
+            className="w-24"
           />
-        </div>
-        <div>
-          <label htmlFor="fecha-compra" className="block text-sm">
-            Fecha
-          </label>
-          <input
+        </FormField>
+        <FormField htmlFor="fecha-compra" label="Fecha">
+          <Input
             id="fecha-compra"
             type="date"
             value={fecha}
             onChange={(e) => setFecha(e.target.value)}
             required
-            className="rounded border px-3 py-2"
           />
-        </div>
-        <div>
-          <label htmlFor="proveedor-compra" className="block text-sm">
-            Proveedor (opcional)
-          </label>
-          <input
+        </FormField>
+        <FormField htmlFor="proveedor-compra" label="Proveedor (opcional)">
+          <Input
             id="proveedor-compra"
             value={proveedor}
             onChange={(e) => setProveedor(e.target.value)}
-            className="rounded border px-3 py-2"
           />
-        </div>
-        <div>
-          <label htmlFor="moneda-compra" className="block text-sm">
-            Moneda
-          </label>
-          <select
+        </FormField>
+        <FormField htmlFor="moneda-compra" label="Moneda">
+          <Select
             id="moneda-compra"
             value={monedaId}
             onChange={(e) => setMonedaId(e.target.value)}
             required
-            className="rounded border px-2 py-2"
           >
             {monedas.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.codigo}
               </option>
             ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="forma-pago" className="block text-sm">
-            Forma de pago
-          </label>
-          <select
+          </Select>
+        </FormField>
+        <FormField htmlFor="forma-pago" label="Forma de pago">
+          <Select
             id="forma-pago"
             value={formaPago}
             onChange={(e) => setFormaPago(e.target.value as Compra["formaPago"])}
-            className="rounded border px-2 py-2"
           >
             {FORMAS_PAGO.map((fp) => (
               <option key={fp} value={fp}>
                 {fp}
               </option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </FormField>
         {formaPago !== "CREDITO_PROVEEDOR" && (
           <CuentaFinancieraSelect
             id="cuenta-financiera"
@@ -199,29 +223,64 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
             label="Cuenta financiera"
           />
         )}
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded bg-emerald-600 px-4 py-2 text-white disabled:opacity-50"
-        >
+        <Button type="submit" disabled={isSubmitting || productos.length === 0}>
           Registrar compra
-        </button>
+        </Button>
       </form>
 
+      {creandoProducto && (
+        <div className="flex flex-wrap items-end gap-2 rounded border border-dashed p-2">
+          <FormField htmlFor="nuevo-nombre-compra" label="Nombre del producto">
+            <Input
+              id="nuevo-nombre-compra"
+              value={nuevoNombre}
+              onChange={(e) => setNuevoNombre(e.target.value)}
+            />
+          </FormField>
+          <FormField htmlFor="nuevo-precio-compra" label="Precio de venta">
+            <Input
+              id="nuevo-precio-compra"
+              value={nuevoPrecio}
+              onChange={(e) => setNuevoPrecio(e.target.value)}
+              className="w-24"
+            />
+          </FormField>
+          <p className="text-xs text-muted">
+            El costo unitario cargado arriba ({costoUnitario || "0"}) queda como su costo inicial.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            disabled={!nuevoNombre.trim() || creandoEnProgreso}
+            onClick={onCrearProducto}
+          >
+            Crear y usar
+          </Button>
+          <Button type="button" variant="link" onClick={() => setCreandoProducto(false)}>
+            Cancelar
+          </Button>
+          {nuevoMensaje && (
+            <p role="alert" className="w-full text-xs text-danger">
+              {nuevoMensaje}
+            </p>
+          )}
+        </div>
+      )}
+
       {serverMessage && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {serverMessage}
         </p>
       )}
 
       {compras.length > 0 && (
-        <ul className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
           {compras.map((c) => (
-            <li key={c.id} className="rounded border px-4 py-2 text-sm">
+            <Card key={c.id} className="text-sm">
               {c.cantidad} × {c.costoUnitario} — {c.formaPago}
-            </li>
+            </Card>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

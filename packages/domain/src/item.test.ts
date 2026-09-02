@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertCambioDeTipoPermitido, TipoItemBloqueadoError } from "./item";
+import { assertCambioDeTipoPermitido, calcularGananciaProducto, TipoItemBloqueadoError } from "./item";
 
 describe("assertCambioDeTipoPermitido", () => {
   it("permite cambiar el tipo si no tiene movimientos", () => {
@@ -24,5 +24,22 @@ describe("assertCambioDeTipoPermitido", () => {
     expect(() =>
       assertCambioDeTipoPermitido({ tipo: "PRODUCTO", tieneMovimientos: true }, "PRODUCTO")
     ).not.toThrow();
+  });
+});
+
+describe("calcularGananciaProducto", () => {
+  it("calcula la ganancia y el margen sobre el precio de venta", () => {
+    const result = calcularGananciaProducto("150000", "100000");
+    expect(result.ganancia).toBe("50000");
+    expect(result.margen).toBe("33.333333333333333333");
+  });
+
+  it("trata precio o costo vacíos como 0 sin lanzar", () => {
+    expect(() => calcularGananciaProducto("", "")).not.toThrow();
+    expect(calcularGananciaProducto("", "").ganancia).toBe("0");
+  });
+
+  it("no divide por cero cuando el precio es 0", () => {
+    expect(calcularGananciaProducto("0", "0").margen).toBe("0");
   });
 });

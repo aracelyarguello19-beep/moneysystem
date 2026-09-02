@@ -80,13 +80,6 @@ describe.skipIf(!hayCuentas)("Story 1.5 — aislamiento entre negocios (Postgres
         `la policy de ${tabla} no consulta app.active_negocio_id: no aísla por negocio`
       ).toContain("app.active_negocio_id");
     }
-
-    // Caso especial documentado (Task 2): `retiros_utilidad` NO filtra por
-    // negocio a propósito — Personal necesita leer los retiros de TODOS los
-    // negocios de la cuenta (FR25). Si algún día alguien "arregla" esta policy
-    // agregándole el filtro de negocio, este test lo va a marcar.
-    expect(porTabla.get("retiros_utilidad")).not.toContain("app.active_negocio_id");
-    expect(porTabla.get("retiros_utilidad")).toContain("auth.uid()");
   });
 
   // --------------------------------------------------------------------------
@@ -217,30 +210,6 @@ describe.skipIf(!hayCuentas)("Story 1.5 — aislamiento entre negocios (Postgres
     for (const venta of ventasN2) {
       expect(venta.cliente, "un updateMany con N1 activo alcanzó una venta de N2").not.toBe(marca);
     }
-  });
-
-  // --------------------------------------------------------------------------
-  // Task 2 — caso especial `retiros_utilidad` (relajado a propósito).
-  // --------------------------------------------------------------------------
-  it("Task 2: retiros_utilidad se lee entre negocios de la misma cuenta, pero nunca entre cuentas", async () => {
-    const desdeN1 = await withRlsContext(cuentaA, n1.negocioId, (tx) =>
-      tx.retiroUtilidad.findMany({})
-    );
-    const ids = desdeN1.map((r) => r.id);
-
-    // Intencional (FR25): Personal necesita ver los retiros de todos los
-    // negocios de la cuenta identificados con su negocio de origen.
-    expect(ids).toContain(n1.retiroId);
-    expect(ids, "retiros_utilidad dejó de ver los retiros de los demás negocios").toContain(
-      n2.retiroId
-    );
-
-    // El relajamiento es SOLO por negocio: el aislamiento por cuenta sigue en pie.
-    const desdeCuentaB = await withRlsContext(cuentaB, null, (tx) =>
-      tx.retiroUtilidad.findMany({})
-    );
-    expect(desdeCuentaB.map((r) => r.id)).not.toContain(n1.retiroId);
-    expect(desdeCuentaB.map((r) => r.id)).not.toContain(n2.retiroId);
   });
 
   // --------------------------------------------------------------------------

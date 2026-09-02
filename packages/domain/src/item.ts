@@ -1,3 +1,5 @@
+import Decimal from "decimal.js";
+
 // [Source: architecture/data-models.md#Item]
 export interface Item {
   id: string;
@@ -9,6 +11,7 @@ export interface Item {
   costoCompra: string | null;
   stockActual: string; // "0" para Servicio, siempre
   tieneMovimientos: boolean;
+  imagenUrl: string | null;
 }
 
 export class TipoItemBloqueadoError extends Error {
@@ -29,4 +32,24 @@ export function assertCambioDeTipoPermitido(
   if (nuevoTipo && nuevoTipo !== itemActual.tipo && itemActual.tieneMovimientos) {
     throw new TipoItemBloqueadoError();
   }
+}
+
+export interface GananciaProducto {
+  ganancia: string;
+  margen: string; // porcentaje sobre el precio de venta — mismo criterio que `margenGanancia` en Indicadores (Story 5.1), nunca sobre el costo
+}
+
+// Vista previa en vivo al cargar una venta (no participa del cálculo
+// oficial de indicadores — ese usa `costoUnitario` congelado en la venta,
+// ver Story de "Costo por venta"). "0" en cualquier valor vacío/no numérico
+// para no romper el formulario mientras el usuario está tipeando.
+export function calcularGananciaProducto(
+  precioVenta: string,
+  costoCompra: string
+): GananciaProducto {
+  const precio = new Decimal(precioVenta || "0");
+  const costo = new Decimal(costoCompra || "0");
+  const ganancia = precio.minus(costo);
+  const margen = precio.isZero() ? new Decimal(0) : ganancia.dividedBy(precio).times(100);
+  return { ganancia: ganancia.toString(), margen: margen.toString() };
 }

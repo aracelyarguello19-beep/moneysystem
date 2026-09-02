@@ -61,7 +61,9 @@ export const cancelarVenta = withErrorHandling(
         valorDevuelto = valorDevuelto.plus(ventaItem.precioUnitario.times(dev.cantidad));
 
         const tipo = ventaItem.item.tipo as Item["tipo"];
-        if (tipo === "PRODUCTO") {
+        // Una línea "venta libre" nunca descontó stock al vender (no sale de
+        // inventario propio) — devolverla tampoco debe sumarlo.
+        if (tipo === "PRODUCTO" && !ventaItem.esLibre) {
           await tx.item.update({
             where: { id: ventaItem.itemId },
             data: { stockActual: { increment: dev.cantidad } },
@@ -114,7 +116,8 @@ export const cancelarVenta = withErrorHandling(
     });
 
     revalidatePath("/laboral/ventas");
-    revalidatePath("/laboral/catalogo");
+    revalidatePath("/laboral/inventario");
+    revalidatePath("/laboral/servicios");
     revalidatePath("/laboral/cuentas-por-cobrar");
     revalidatePath("/laboral/indicadores");
 

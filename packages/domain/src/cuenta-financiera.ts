@@ -1,15 +1,21 @@
-// Modelo unificado de Caja, Cuenta Bancaria y Tarjeta de Crédito — un solo
-// concepto ("medio de pago con saldo/deuda") en vez de tres tablas
-// paralelas. [Source: architecture/data-models.md#CuentaFinanciera]
-export type TipoCuentaFinanciera = "CAJA" | "BANCO" | "TARJETA";
+// Modelo unificado de Caja (base de la sesión "Caja"): Efectivo, Cuenta
+// Bancaria, Tarjeta de Crédito y Otro — un solo concepto ("medio de pago con
+// saldo/deuda") en vez de tablas paralelas.
+// [Source: architecture/data-models.md#CuentaFinanciera]
+export type TipoCuentaFinanciera = "CAJA" | "BANCO" | "TARJETA" | "OTRO";
 
 export interface CuentaFinanciera {
   id: string;
   cuentaId: string;
-  negocioId: string | null; // null = Personal, ver Epic 6
-  ambito: "LABORAL" | "PERSONAL";
+  negocioId: string;
   tipo: TipoCuentaFinanciera;
   nombre: string;
+  // Solo tipo BANCO: nombre del banco + alias para distinguir varias
+  // cuentas del mismo banco/moneda (ej. "Ueno Bank" / "Cuenta 1").
+  banco: string | null;
+  alias: string | null;
+  // Solo tipo OTRO: detalle libre.
+  detalleOtro: string | null;
   monedaId: string;
   saldoActual: string; // Tarjeta: negativo = deuda
   limiteCredito: string | null;
@@ -21,7 +27,6 @@ export type ReferenciaMovimientoCuenta =
   | "VENTA"
   | "GASTO"
   | "PAGO_CXC"
-  | "RETIRO"
   | "MANUAL"
   | null;
 
@@ -74,6 +79,21 @@ export function agruparSaldosPorMoneda(
     (acc[cuenta.monedaId] ??= []).push(cuenta);
     return acc;
   }, {});
+}
+
+// Caja: las cuentas tipo BANCO se agrupan por nombre de banco (ej. "Ueno
+// Bank" con 3 cuentas), y dentro de cada banco por moneda — mismo criterio
+// de "nunca sumar montos de monedas distintas" que agruparSaldosPorMoneda.
+export function agruparPorBanco(
+  cuentas: CuentaFinanciera[]
+): Record<string, CuentaFinanciera[]> {
+  return cuentas
+    .filter((c) => c.tipo === "BANCO")
+    .reduce<Record<string, CuentaFinanciera[]>>((acc, cuenta) => {
+      const clave = cuenta.banco?.trim() || "Sin banco";
+      (acc[clave] ??= []).push(cuenta);
+      return acc;
+    }, {});
 }
 
 export class CuentaFinancieraTipoInvalidoError extends Error {

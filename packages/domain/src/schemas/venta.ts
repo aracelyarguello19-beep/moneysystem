@@ -1,12 +1,23 @@
 import { z } from "zod";
 import { decimalStringSchema } from "./decimal";
 
-export const ventaItemInputSchema = z.object({
-  itemId: z.string().uuid(),
-  cantidad: decimalStringSchema.nullable(),
-  precioUnitario: decimalStringSchema,
-  costoServicio: decimalStringSchema.nullable().optional(),
-});
+// `esLibre`: venta "sobre pedido" — el ítem elegido solo identifica el
+// producto/modelo para el reporte, no descuenta stock. En ese caso el costo
+// lo tipea quien vende (no se lee del catálogo), por eso `costoUnitario` es
+// obligatorio cuando `esLibre` es true.
+export const ventaItemInputSchema = z
+  .object({
+    itemId: z.string().uuid(),
+    cantidad: decimalStringSchema.nullable(),
+    precioUnitario: decimalStringSchema,
+    costoServicio: decimalStringSchema.nullable().optional(),
+    esLibre: z.boolean().optional().default(false),
+    costoUnitario: decimalStringSchema.optional(),
+  })
+  .refine((data) => !data.esLibre || data.costoUnitario !== undefined, {
+    message: "El costo es obligatorio en una venta libre",
+    path: ["costoUnitario"],
+  });
 export type VentaItemInput = z.infer<typeof ventaItemInputSchema>;
 
 // `cliente` y `cuentaFinancieraId` son mutuamente exclusivos con

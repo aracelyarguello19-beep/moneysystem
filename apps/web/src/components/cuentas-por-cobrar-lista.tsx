@@ -5,8 +5,18 @@ import type { CuentaPorCobrar } from "@repo/domain";
 import { calcularTotalAdeudado } from "@repo/domain";
 import { listarCuentasPorCobrar } from "@/actions/cuentas-por-cobrar/listar-cuentas-por-cobrar";
 import { registrarPagoCxC } from "@/actions/cuentas-por-cobrar/registrar-pago-cxc";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { StatCard } from "@/components/ui/stat-card";
 
 type CxCConFecha = CuentaPorCobrar & { fechaOrigen: Date };
+
+const ESTADO_BADGE: Record<CxCConFecha["estado"], { label: string; variant: "success" | "warning" }> = {
+  PAGADO: { label: "Pagado", variant: "success" },
+  PENDIENTE: { label: "Pendiente", variant: "warning" },
+  PARCIAL: { label: "Parcial", variant: "warning" },
+};
 
 // AC1/AC3/AC4: listado por cliente con monto adeudado, fecha de origen y
 // estado, más el total agregado. AC2: registrar un pago (total o parcial).
@@ -45,25 +55,32 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
   if (!cuentas) return null;
 
   if (cuentas.length === 0) {
-    return <p className="text-sm text-gray-500">No hay cuentas por cobrar en este negocio.</p>;
+    return <p className="text-sm text-muted">No hay cuentas por cobrar en este negocio.</p>;
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="font-medium">Total adeudado: {calcularTotalAdeudado(cuentas)}</p>
+      <StatCard
+        spotlight
+        tone="primary"
+        label="Total adeudado"
+        value={calcularTotalAdeudado(cuentas)}
+        className="w-full sm:w-64"
+      />
       <ul className="flex flex-col gap-3">
         {cuentas.map((c) => (
-          <li key={c.id} className="rounded border px-4 py-2">
-            <p className="text-sm">
-              <span className="font-medium">{c.cliente}</span> · {c.estado} ·{" "}
-              {c.fechaOrigen.toString().slice(0, 10)}
+          <li key={c.id} className="rounded border border-default px-4 py-2">
+            <p className="flex items-center gap-2 text-sm">
+              <span className="font-medium">{c.cliente}</span>
+              <Badge variant={ESTADO_BADGE[c.estado].variant}>{ESTADO_BADGE[c.estado].label}</Badge>
+              <span className="text-muted">{c.fechaOrigen.toString().slice(0, 10)}</span>
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted">
               Debe {c.montoOriginal}, pagó {c.montoPagado}
             </p>
             {c.estado !== "PAGADO" && (
               <div className="mt-2 flex items-end gap-2">
-                <input
+                <Input
                   aria-label={`Monto a pagar de ${c.cliente}`}
                   value={pagos[c.id]?.monto ?? ""}
                   onChange={(e) =>
@@ -73,9 +90,9 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
                     }))
                   }
                   placeholder="Monto"
-                  className="w-24 rounded border px-2 py-1 text-sm"
+                  className="w-24"
                 />
-                <input
+                <Input
                   aria-label={`Cuenta financiera para el pago de ${c.cliente}`}
                   value={pagos[c.id]?.cuentaFinancieraId ?? ""}
                   onChange={(e) =>
@@ -85,19 +102,15 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
                     }))
                   }
                   placeholder="Cuenta financiera (id, pendiente Story 4.3)"
-                  className="w-56 rounded border px-2 py-1 text-sm"
+                  className="w-56"
                 />
-                <button
-                  type="button"
-                  onClick={() => onPagar(c.id)}
-                  className="rounded bg-emerald-600 px-3 py-1 text-sm text-white"
-                >
+                <Button type="button" size="sm" onClick={() => onPagar(c.id)}>
                   Registrar pago
-                </button>
+                </Button>
               </div>
             )}
             {mensajes[c.id] && (
-              <p role="alert" className="mt-1 text-xs text-red-600">
+              <p role="alert" className="mt-1 text-xs text-danger">
                 {mensajes[c.id]}
               </p>
             )}

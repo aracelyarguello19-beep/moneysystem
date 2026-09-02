@@ -8,19 +8,15 @@ import type { Moneda } from "@repo/domain";
 import { crearMoneda } from "@/actions/catalogos/crear-moneda";
 import { listarMonedas } from "@/actions/catalogos/listar-monedas";
 import { desactivarMoneda } from "@/actions/catalogos/desactivar-moneda";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
 
-// Catálogo de monedas por ámbito — usado tanto en la configuración del
-// negocio activo (LABORAL) como en la de Personal (PERSONAL, negocioId
-// null). `ambito`/`negocioId` los resuelve la página contenedora a partir
-// del contexto (selector de negocio activo), nunca el usuario en el
-// formulario. [Source: architecture/frontend-architecture.md#Component Organization]
-export function MonedaCatalogo({
-  ambito,
-  negocioId,
-}: {
-  ambito: "LABORAL" | "PERSONAL";
-  negocioId: string | null;
-}) {
+// Catálogo de monedas del negocio activo — `negocioId` lo resuelve la
+// página contenedora a partir del contexto (selector de negocio activo),
+// nunca el usuario en el formulario.
+// [Source: architecture/frontend-architecture.md#Component Organization]
+export function MonedaCatalogo({ negocioId }: { negocioId: string }) {
   const [monedas, setMonedas] = useState<Moneda[] | null>(null);
   const [serverMessage, setServerMessage] = useState<string | null>(null);
 
@@ -42,7 +38,7 @@ export function MonedaCatalogo({
 
   async function onSubmit(data: MonedaCamposInput) {
     setServerMessage(null);
-    const result = await crearMoneda({ ambito, negocioId, ...data });
+    const result = await crearMoneda({ negocioId, ...data });
     if (!result.ok) {
       setServerMessage(result.error.message);
       return;
@@ -64,61 +60,37 @@ export function MonedaCatalogo({
   return (
     <div className="flex flex-col gap-4">
       <form onSubmit={handleSubmit(onSubmit)} className="flex items-end gap-2" noValidate>
-        <div>
-          <label htmlFor="codigo" className="block text-sm">
-            Código
-          </label>
-          <input id="codigo" className="w-24 rounded border px-3 py-2" {...register("codigo")} />
-          {errors.codigo && (
-            <p role="alert" className="text-sm text-red-600">
-              {errors.codigo.message}
-            </p>
-          )}
-        </div>
-        <div>
-          <label htmlFor="nombre-moneda" className="block text-sm">
-            Nombre
-          </label>
-          <input id="nombre-moneda" className="rounded border px-3 py-2" {...register("nombre")} />
-          {errors.nombre && (
-            <p role="alert" className="text-sm text-red-600">
-              {errors.nombre.message}
-            </p>
-          )}
-        </div>
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded bg-emerald-600 px-4 py-2 text-white disabled:opacity-50"
-        >
+        <FormField htmlFor="codigo" label="Código" error={errors.codigo?.message}>
+          <Input id="codigo" className="w-24" {...register("codigo")} />
+        </FormField>
+        <FormField htmlFor="nombre-moneda" label="Nombre" error={errors.nombre?.message}>
+          <Input id="nombre-moneda" {...register("nombre")} />
+        </FormField>
+        <Button type="submit" disabled={isSubmitting}>
           Agregar moneda
-        </button>
+        </Button>
       </form>
 
       {serverMessage && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {serverMessage}
         </p>
       )}
 
       <ul className="flex flex-col gap-2">
         {monedas?.map((m) => (
-          <li key={m.id} className="flex items-center justify-between rounded border px-4 py-2">
+          <li key={m.id} className="flex items-center justify-between rounded border border-default px-4 py-2">
             <div>
               <p className="font-medium">
                 {m.codigo} — {m.nombre}
                 {m.esBase && " (base)"}
               </p>
-              <p className="text-xs text-gray-500">{m.activa ? "Activa" : "Desactivada"}</p>
+              <p className="text-xs text-muted">{m.activa ? "Activa" : "Desactivada"}</p>
             </div>
             {m.activa && !m.esBase && (
-              <button
-                type="button"
-                onClick={() => onDesactivar(m.id)}
-                className="text-sm text-red-600 underline"
-              >
+              <Button type="button" variant="link" className="text-danger" onClick={() => onDesactivar(m.id)}>
                 Desactivar
-              </button>
+              </Button>
             )}
           </li>
         ))}

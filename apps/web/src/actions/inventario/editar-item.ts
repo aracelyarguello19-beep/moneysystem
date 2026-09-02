@@ -55,11 +55,13 @@ export async function editarItem(
           nombre: parsed.data.nombre,
           precioVenta: parsed.data.precioVenta,
           ...(parsed.data.tipo ? { tipo: parsed.data.tipo } : {}),
+          ...(parsed.data.imagenUrl !== undefined ? { imagenUrl: parsed.data.imagenUrl } : {}),
         },
       });
     });
 
-    revalidatePath("/laboral/catalogo");
+    revalidatePath("/laboral/inventario");
+    revalidatePath("/laboral/servicios");
 
     return {
       ok: true,
@@ -73,6 +75,7 @@ export async function editarItem(
         costoCompra: item.costoCompra?.toString() ?? null,
         stockActual: item.stockActual.toString(),
         tieneMovimientos: item.tieneMovimientos,
+        imagenUrl: item.imagenUrl,
       },
     };
   } catch (e) {
