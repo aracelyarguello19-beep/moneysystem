@@ -76,6 +76,8 @@ export async function editarItem(
         stockActual: item.stockActual.toString(),
         tieneMovimientos: item.tieneMovimientos,
         imagenUrl: item.imagenUrl,
+        nroCalce: item.nroCalce,
+        proveedor: item.proveedor,
       },
     };
   } catch (e) {

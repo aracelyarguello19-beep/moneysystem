@@ -1,0 +1,151 @@
+schema_version: "1.0"
+generated_for_story: "2026-05-07-design-md-model-benchmark-matrix"
+
+classification_bands:
+  gold:
+    min_score: 90
+    max_blockers: 0
+  acceptable:
+    min_score: 82
+    max_blockers: 0
+  cheap-triage:
+    min_score: 75
+    max_blockers: 0
+  reject:
+    min_score: 0
+    max_blockers: null
+
+weights:
+  structure_validity: 15
+  output_hygiene: 15
+  source_backing: 20
+  selector_provenance: 10
+  component_states: 10
+  motion_tokens: 8
+  asymmetry_signals: 7
+  atomic_layer_coverage: 10
+  size_sanity: 3
+  cost_latency: 2
+
+blockers:
+  - id: "runner_exit_nonzero"
+    severity: "blocker"
+    description: "Canonical extractor failed for the model/URL pair."
+  - id: "missing_design_md"
+    severity: "blocker"
+    description: "DESIGN.md was not produced."
+  - id: "invalid_design_md"
+    severity: "blocker"
+    description: "DESIGN.md does not look like a frontmatter-backed design artifact."
+  - id: "base64_or_data_uri"
+    severity: "blocker"
+    description: "Output embedded base64/data URI payloads."
+  - id: "input_duplication"
+    severity: "blocker"
+    description: "Output appears to duplicate raw input payload."
+  - id: "canonical_pollution"
+    severity: "blocker"
+    description: "Benchmark wrote scratch output outside the isolated benchmark directory."
+  - id: "incomplete_extraction"
+    severity: "blocker"
+    description: "Extraction-class is not complete or lacks real coverage."
+  - id: "unbacked_fallback_without_extraction_gap"
+    severity: "blocker"
+    description: "Generic fallback suspects are unbacked and not marked with extraction_gap(...)."
+  - id: "oversized_design_md"
+    severity: "blocker"
+    description: "DESIGN.md is too large for downstream use and likely includes copied payloads."
+
+non_blocking_environment_failures:
+  - "npm-duplicate-workspace"
+
+thresholds:
+  max_design_md_bytes: 250000
+  min_design_md_bytes: 1500
+  input_duplication_probe_chars: 1200
+
+url_oracles:
+  youtube:
+    must_capture:
+      - "navigation/app chrome"
+      - "media grid/feed component families"
+      - "interaction states for video cards or controls"
+    must_not_emit:
+      - "base64 screenshots or icons"
+      - "generic streaming UI copy without evidence"
+    known_failure_modes:
+      - "oversized raw payload copied into output"
+      - "dynamic UI collapsed into generic card prose"
+    manual_review_focus:
+      - "icon/media density"
+      - "navigation states"
+      - "output compactness"
+  itau:
+    must_capture:
+      - "financial brand color system"
+      - "account/product navigation"
+      - "CTA and form states"
+    must_not_emit:
+      - "history replication from current inputs"
+      - "generic finance-card copy"
+    known_failure_modes:
+      - "input/history duplication"
+      - "fabricated brand tokens"
+    manual_review_focus:
+      - "source-backed brand colors"
+      - "banking-specific components"
+  mercadolivre:
+    must_capture:
+      - "marketplace search and category navigation"
+      - "product-card/listing component families"
+      - "trust/payment/shipping signals"
+    must_not_emit:
+      - "root/input duplication"
+      - "generic ecommerce defaults"
+    known_failure_modes:
+      - "raw input copied into DESIGN.md"
+      - "marketplace components reduced to generic cards"
+    manual_review_focus:
+      - "search/listing fidelity"
+      - "seller/buyer marketplace details"
+  medium:
+    must_capture:
+      - "editorial typography"
+      - "reading layout"
+      - "membership or paywall signals"
+      - "button/link states"
+    must_not_emit:
+      - "generic blog theme defaults"
+      - "emoji or decorative substitutions"
+    known_failure_modes:
+      - "loss of publication/editorial nuance"
+    manual_review_focus:
+      - "typographic hierarchy"
+      - "editorial component states"
+  apple:
+    must_capture:
+      - "premium product layout scale"
+      - "minimal UI chrome"
+      - "product grid and large typography"
+    must_not_emit:
+      - "invented gradients"
+      - "generic SaaS section patterns"
+    known_failure_modes:
+      - "visual system flattened into generic marketing blocks"
+    manual_review_focus:
+      - "spacing scale"
+      - "product-grid precision"
+  n8n:
+    must_capture:
+      - "workflow/product builder components"
+      - "developer/product evidence"
+      - "integration or automation taxonomy"
+    must_not_emit:
+      - "generic Learn more filler unless source-backed"
+      - "unsupported workflow claims"
+    known_failure_modes:
+      - "generic fallback copy"
+      - "weak source-backed component extraction"
+    manual_review_focus:
+      - "workflow component families"
+      - "specific product language"

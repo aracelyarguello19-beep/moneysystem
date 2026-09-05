@@ -21,7 +21,15 @@ export interface Venta {
 export interface VentaItem {
   id: string;
   ventaId: string;
-  itemId: string;
+  // null solo cuando `esLibre` y el producto NO está en el catálogo — en ese
+  // caso `nombreLibre` identifica la línea. Nunca se crea un Item nuevo
+  // automáticamente para esto (ver `nombreLibre`).
+  itemId: string | null;
+  // Solo cuando `esLibre` y `itemId` es null: nombre tipeado a mano de un
+  // producto fuera de catálogo. Cuenta para los totales de la venta pero NO
+  // para el desglose por producto en Reportes (no hay identidad de producto
+  // real detrás).
+  nombreLibre: string | null;
   cantidad: string | null; // null para Servicio sin cantidad explícita
   precioUnitario: string;
   costoServicio: string | null; // solo Servicio — null tratado como 0, ver Story 3.2

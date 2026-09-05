@@ -6,44 +6,56 @@ import { listarCuentasFinancieras } from "@/actions/cuentas-financieras/listar-c
 import { FormField } from "@/components/ui/form-field";
 import { Select } from "@/components/ui/select";
 
+const ETIQUETA_TIPO: Record<CuentaFinanciera["tipo"], string> = {
+  CAJA: "cuentas de efectivo",
+  BANCO: "cuentas de banco",
+  TARJETA: "tarjetas",
+  OTRO: "cuentas",
+};
+
 // Selector reutilizable de cuenta financiera para los formularios de
-// compra/venta/gasto: si `esTarjeta` es true, ofrece las tarjetas del
-// negocio; si no, ofrece efectivo/banco (nunca tarjeta ni "Otro" — ninguna
-// forma de pago del sistema liquida contra esos dos tipos).
+// compra/venta/gasto: `tipo` filtra por el tipo de cuenta que corresponde a
+// la forma de pago ya elegida en el formulario (Efectivo → CAJA, Banco →
+// BANCO, Tarjeta → TARJETA) — nunca mezcla tipos entre sí, porque pagar en
+// efectivo no puede salir de una cuenta bancaria ni viceversa. Acepta un
+// array cuando de verdad hace falta ofrecer más de un tipo junto (ej. "con
+// qué cuenta pagás el resumen de la tarjeta", que puede ser Efectivo o
+// Banco indistintamente).
 export function CuentaFinancieraSelect({
   negocioId,
-  esTarjeta,
+  tipo,
   value,
   onChange,
   label,
   id,
 }: {
   negocioId: string;
-  esTarjeta: boolean;
+  tipo: CuentaFinanciera["tipo"] | CuentaFinanciera["tipo"][];
   value: string;
   onChange: (id: string) => void;
   label: string;
   id: string;
 }) {
   const [cuentas, setCuentas] = useState<CuentaFinanciera[]>([]);
+  const tipos = Array.isArray(tipo) ? tipo : [tipo];
+  const tiposKey = tipos.join(",");
 
   useEffect(() => {
     listarCuentasFinancieras(negocioId).then((result) => {
       if (!result.ok) return;
-      const filtradas = result.data.filter((c) =>
-        esTarjeta ? c.tipo === "TARJETA" : c.tipo === "CAJA" || c.tipo === "BANCO"
-      );
+      const filtradas = result.data.filter((c) => tiposKey.split(",").includes(c.tipo));
       setCuentas(filtradas);
       if (!value && filtradas[0]) onChange(filtradas[0].id);
     });
-    // Solo se recarga cuando cambia el negocio o si se pasa de tarjeta a no-tarjeta.
+    // Solo se recarga cuando cambia el negocio o el/los tipo(s) pedidos.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [negocioId, esTarjeta]);
+  }, [negocioId, tiposKey]);
 
   if (cuentas.length === 0) {
+    const etiqueta = tipos.length === 1 ? ETIQUETA_TIPO[tipos[0]] : "cuentas";
     return (
       <p className="text-xs text-warning-text">
-        No hay {esTarjeta ? "tarjetas" : "cuentas de caja/banco"} creadas todavía.
+        No hay {etiqueta} creadas todavía.
       </p>
     );
   }

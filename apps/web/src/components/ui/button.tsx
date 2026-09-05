@@ -8,8 +8,13 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: "bg-primary text-on-primary hover:opacity-90",
-        danger: "bg-error text-on-error hover:opacity-90",
+        // Disabled explícito en vez de solo opacity-50: `primary` es blanco
+        // en tema oscuro (--color-primary en .dark, globals.css), así que un
+        // botón deshabilitado a medio-opacity queda casi blanco sobre fondo
+        // oscuro con el texto ilegible — necesita su propio par bg/texto que
+        // funcione en los dos temas.
+        primary: "bg-primary text-on-primary hover:opacity-90 disabled:bg-surface-container-high disabled:text-on-surface-variant",
+        danger: "bg-error text-on-error hover:opacity-90 disabled:bg-surface-container-high disabled:text-on-surface-variant",
         outline: "border border-outline-variant bg-surface text-on-surface hover:bg-surface-container-high",
         ghost: "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface",
         link: "text-tertiary underline-offset-2 hover:underline",

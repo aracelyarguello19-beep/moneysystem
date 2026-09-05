@@ -3,14 +3,13 @@
 import { CajaPanel } from "@/components/caja-panel";
 import { CajaResumenMonedas } from "@/components/caja-resumen-monedas";
 import { CajaTransacciones } from "@/components/caja-transacciones";
-import { MonedaCatalogo } from "@/components/moneda-catalogo";
 import { useNegocioActivoStore } from "@/stores/negocio-activo.store";
 import { PageHeader } from "@/components/ui/page-header";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 
-// Caja — mismo layout que "Gestión de Caja Multimoneda" de Stitch: bento de
-// saldo por moneda arriba, transacciones recientes, y debajo la gestión de
-// cuentas (crear, tarjetas, otro) y monedas.
+// Caja: bento de saldo por moneda y gestión de cuentas (crear, tarjetas,
+// otro) y monedas arriba — transacciones recientes al final, mismo criterio
+// que el historial de Compras/Gastos (formulario/gestión primero, log
+// después).
 export default function CajaPage() {
   const negocioActivoId = useNegocioActivoStore((state) => state.negocioActivoId);
 
@@ -26,16 +25,9 @@ export default function CajaPage() {
         <>
           <CajaResumenMonedas negocioId={negocioActivoId} />
 
-          <CajaTransacciones negocioId={negocioActivoId} />
-
           <CajaPanel negocioId={negocioActivoId} />
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Monedas</CardTitle>
-            </CardHeader>
-            <MonedaCatalogo negocioId={negocioActivoId} />
-          </Card>
+          <CajaTransacciones negocioId={negocioActivoId} />
         </>
       )}
     </main>

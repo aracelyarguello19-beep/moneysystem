@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormField } from "@/components/ui/form-field";
+import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { StatCard } from "@/components/ui/stat-card";
@@ -36,7 +37,7 @@ export default function DesignSystemPage() {
         <StatCard
           spotlight
           tone="primary"
-          icon={<span>$</span>}
+          icon={<Icon name="payments" />}
           label="Lucro"
           value="Gs. 6.575.160"
           delta="+11.8%"
@@ -44,7 +45,7 @@ export default function DesignSystemPage() {
         />
         <StatCard
           tone="primary"
-          icon={<span>$</span>}
+          icon={<Icon name="payments" />}
           label="Faturamento"
           value="Gs. 14.238.120"
           delta="+28%"
@@ -52,7 +53,7 @@ export default function DesignSystemPage() {
         />
         <StatCard
           tone="danger"
-          icon={<span>▼</span>}
+          icon={<Icon name="trending_down" />}
           label="Custos Totais"
           value="Gs. 7.662.960"
           delta="-19%"
@@ -60,7 +61,7 @@ export default function DesignSystemPage() {
         />
         <StatCard
           tone="warning"
-          icon={<span>%</span>}
+          icon={<Icon name="pie_chart" />}
           label="Margem"
           value="15,2%"
           delta="+71%"

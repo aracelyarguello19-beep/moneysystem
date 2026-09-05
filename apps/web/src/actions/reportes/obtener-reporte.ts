@@ -33,14 +33,21 @@ export const obtenerReporte = withErrorHandling(
         }),
       ]);
 
+      // Una línea de venta libre con un producto fuera de catálogo
+      // (`itemId` null) no tiene una identidad de producto real detrás —
+      // cuenta para los totales del negocio (Ingresos Brutos, etc., ya
+      // calculados aparte a nivel de venta), pero no se le puede atribuir
+      // un ítem en el desglose "Productos vendidos" de este reporte.
       const ventaItems = ventas.flatMap((v) =>
-        v.ventaItems.map((vi) => ({
-          itemId: vi.itemId,
-          itemNombre: vi.item.nombre,
-          cantidad: vi.cantidad?.toString() ?? null,
-          precioUnitario: vi.precioUnitario.toString(),
-          cantidadDevuelta: vi.cantidadDevuelta.toString(),
-        }))
+        v.ventaItems
+          .filter((vi) => vi.itemId !== null && vi.item)
+          .map((vi) => ({
+            itemId: vi.itemId!,
+            itemNombre: vi.item!.nombre,
+            cantidad: vi.cantidad?.toString() ?? null,
+            precioUnitario: vi.precioUnitario.toString(),
+            cantidadDevuelta: vi.cantidadDevuelta.toString(),
+          }))
       );
 
       return {

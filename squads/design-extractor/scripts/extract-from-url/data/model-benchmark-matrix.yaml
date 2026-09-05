@@ -1,0 +1,621 @@
+schema_version: "1.0"
+generated_for_story: "2026-05-07-design-md-model-benchmark-matrix"
+
+usage_profile:
+  description: "Average live /design-md profile used for dry-run cost estimates."
+  average_input_tokens: 1500
+  average_output_tokens: 20000
+  average_cache_read_tokens: 0
+  default_estimated_cost_per_run_usd: 0.35
+
+url_groups:
+  required:
+    - youtube
+    - itau
+    - mercadolivre
+    - medium
+    - apple
+    - n8n
+  hard:
+    - youtube
+    - itau
+    - mercadolivre
+    - apple
+  optional:
+    - anthropic
+    - aiox-brandbook
+    - openai
+  smoke:
+    - medium
+
+urls:
+  youtube:
+    url: "https://www.youtube.com/"
+    category: "media"
+    required: true
+  itau:
+    url: "https://www.itau.com.br/"
+    category: "finance"
+    required: true
+  mercadolivre:
+    url: "https://www.mercadolivre.com.br/"
+    category: "ecommerce"
+    required: true
+  medium:
+    url: "https://medium.com/"
+    category: "editorial"
+    required: true
+  apple:
+    url: "https://www.apple.com/"
+    category: "consumer-brand"
+    required: true
+  n8n:
+    url: "https://n8n.io/"
+    category: "developer-tool"
+    required: true
+  anthropic:
+    url: "https://www.anthropic.com/"
+    category: "ai-brand"
+    required: false
+  aiox-brandbook:
+    url: "https://brand.aioxsquad.ai/brandbook/guidelines"
+    category: "internal-brandbook"
+    required: false
+  openai:
+    url: "https://www.openai.com/"
+    category: "ai-brand"
+    required: false
+
+model_groups:
+  cli:
+    - codex-cli-default
+    - codex-cli-cheap
+    - codex-cli-standard
+    - codex-cli-premium
+    - claude-cli-default
+    - claude-cli-haiku
+    - claude-cli-sonnet
+    - claude-cli-opus
+  codex-cli:
+    - codex-cli-default
+    - codex-cli-cheap
+    - codex-cli-standard
+    - codex-cli-premium
+  claude-cli:
+    - claude-cli-default
+    - claude-cli-haiku
+    - claude-cli-sonnet
+    - claude-cli-opus
+  cheap:
+    - deepseek-v4-flash
+    - qwen3-coder-next
+    - gemini-3-1-flash-lite
+  smoke:
+    - deepseek-v4-flash
+    - qwen3-coder-next
+    - gemini-3-1-flash-lite
+  baseline:
+    - claude-haiku
+    - claude-sonnet
+  nonpremium:
+    - claude-haiku
+    - claude-sonnet
+    - gpt-5-4
+    - gpt-5-4-mini
+    - gpt-5-4-nano
+    - gemini-3-flash-preview
+    - gemini-3-1-flash-lite
+    - kimi-k2-6
+    - kimi-k2-5
+    - deepseek-v4-flash
+    - deepseek-v4-pro
+    - deepseek-v3-2
+    - qwen3-6-plus
+    - qwen3-coder-next
+    - minimax-m2-7
+    - tencent-hy3-preview-free
+    - grok-4-1-fast
+  premium:
+    - claude-opus
+    - gpt-5-5
+    - gpt-5-3-codex-spark
+    - gemini-3-1-pro-preview
+  direct-required:
+    - glm-5-1
+    - glm-5
+    - glm-5-turbo
+    - glm-4-7
+    - glm-4-7-flashx
+  all:
+    - claude-haiku
+    - claude-sonnet
+    - claude-opus
+    - gpt-5-5
+    - gpt-5-4
+    - gpt-5-4-mini
+    - gpt-5-4-nano
+    - gpt-5-3-codex
+    - gpt-5-3-codex-spark
+    - gemini-3-flash-preview
+    - gemini-3-1-flash-lite
+    - gemini-3-1-pro-preview
+    - kimi-k2-6
+    - kimi-k2-5
+    - deepseek-v4-flash
+    - deepseek-v4-pro
+    - deepseek-v3-2
+    - qwen3-6-plus
+    - qwen3-coder-next
+    - minimax-m2-7
+    - tencent-hy3-preview-free
+    - grok-4-1-fast
+    - glm-5-1
+    - glm-5
+    - glm-5-turbo
+    - glm-4-7
+    - glm-4-7-flashx
+
+models:
+  - slug: codex-cli-default
+    display_name: "Codex CLI Default"
+    model_id: "codex-config-default"
+    provider_path: "codex-cli"
+    model_family: "openai-codex-cli"
+    cohort: "cli-baseline"
+    context_window: null
+    max_output_tokens: null
+    premium: false
+    opt_in_required: false
+    budget_tier: "standard"
+    pricing_source_url: "local Codex CLI account"
+    estimated_cost_per_run_usd: 0.65
+    aliases: ["codex", "codex-default", "codex-cli-default"]
+  - slug: codex-cli-cheap
+    display_name: "Codex CLI Cheap"
+    model_id: "gpt-5.4-mini"
+    provider_path: "codex-cli"
+    model_family: "openai-codex-cli"
+    cohort: "cli-cheap"
+    context_window: null
+    max_output_tokens: null
+    premium: false
+    opt_in_required: false
+    budget_tier: "cheap"
+    pricing_source_url: "local Codex CLI account"
+    estimated_cost_per_run_usd: 0.25
+    aliases: ["codex-cheap", "codex-mini", "gpt-5.4-mini-cli"]
+  - slug: codex-cli-standard
+    display_name: "Codex CLI Standard"
+    model_id: "gpt-5.4"
+    provider_path: "codex-cli"
+    model_family: "openai-codex-cli"
+    cohort: "cli-standard"
+    context_window: null
+    max_output_tokens: null
+    premium: false
+    opt_in_required: false
+    budget_tier: "standard"
+    pricing_source_url: "local Codex CLI account"
+    estimated_cost_per_run_usd: 0.55
+    aliases: ["codex-standard", "gpt-5.4-cli"]
+  - slug: codex-cli-premium
+    display_name: "Codex CLI Premium"
+    model_id: "gpt-5.5"
+    provider_path: "codex-cli"
+    model_family: "openai-codex-cli"
+    cohort: "cli-premium"
+    context_window: null
+    max_output_tokens: null
+    premium: true
+    opt_in_required: true
+    budget_tier: "premium"
+    pricing_source_url: "local Codex CLI account"
+    estimated_cost_per_run_usd: 0.85
+    aliases: ["codex-premium", "gpt-5.5-cli"]
+  - slug: claude-cli-default
+    display_name: "Claude CLI Default"
+    model_id: "claude-cli-default"
+    provider_path: "claude-cli"
+    model_family: "claude-cli"
+    cohort: "cli-baseline"
+    context_window: null
+    max_output_tokens: null
+    premium: false
+    opt_in_required: false
+    budget_tier: "standard"
+    pricing_source_url: "local Claude CLI account"
+    estimated_cost_per_run_usd: 0.35
+    aliases: ["claude", "claude-default", "claude-cli-default"]
+  - slug: claude-cli-haiku
+    display_name: "Claude CLI Haiku"
+    model_id: "claude-haiku-4-5"
+    provider_path: "claude-cli"
+    model_family: "claude-cli"
+    cohort: "cli-cheap"
+    context_window: null
+    max_output_tokens: null
+    premium: false
+    opt_in_required: false
+    budget_tier: "cheap"
+    pricing_source_url: "local Claude CLI account"
+    estimated_cost_per_run_usd: 0.08
+    aliases: ["claude-cli-haiku", "claude-haiku-cli", "haiku-cli"]
+  - slug: claude-cli-sonnet
+    display_name: "Claude CLI Sonnet"
+    model_id: "claude-sonnet-4-6"
+    provider_path: "claude-cli"
+    model_family: "claude-cli"
+    cohort: "cli-standard"
+    context_window: null
+    max_output_tokens: null
+    premium: false
+    opt_in_required: false
+    budget_tier: "standard"
+    pricing_source_url: "local Claude CLI account"
+    estimated_cost_per_run_usd: 0.35
+    aliases: ["claude-cli-sonnet", "claude-sonnet-cli", "sonnet-cli"]
+  - slug: claude-cli-opus
+    display_name: "Claude CLI Opus"
+    model_id: "claude-opus-4-7"
+    provider_path: "claude-cli"
+    model_family: "claude-cli"
+    cohort: "cli-premium"
+    context_window: null
+    max_output_tokens: null
+    premium: true
+    opt_in_required: true
+    budget_tier: "premium"
+    pricing_source_url: "local Claude CLI account"
+    estimated_cost_per_run_usd: 1.5
+    aliases: ["claude-cli-opus", "claude-opus-cli", "opus-cli"]
+  - slug: claude-haiku
+    display_name: "Claude Haiku 4.5"
+    model_id: "anthropic/claude-haiku-4-5"
+    provider_path: "openrouter"
+    model_family: "claude"
+    cohort: "baseline"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://www.anthropic.com/pricing"
+    estimated_cost_per_run_usd: 0.08
+    aliases: ["haiku", "claude-haiku-4-5", "anthropic/claude-haiku-4-5"]
+  - slug: claude-sonnet
+    display_name: "Claude Sonnet 4.6"
+    model_id: "anthropic/claude-sonnet-4-6"
+    provider_path: "openrouter"
+    model_family: "claude"
+    cohort: "baseline"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://www.anthropic.com/pricing"
+    estimated_cost_per_run_usd: 0.35
+    aliases: ["sonnet", "claude-sonnet-4-6", "anthropic/claude-sonnet-4-6"]
+  - slug: claude-opus
+    display_name: "Claude Opus 4.7"
+    model_id: "anthropic/claude-opus-4-7"
+    provider_path: "openrouter"
+    model_family: "claude"
+    cohort: "premium"
+    context_window: null
+    max_output_tokens: 32768
+    premium: true
+    opt_in_required: true
+    pricing_source_url: "https://www.anthropic.com/pricing"
+    estimated_cost_per_run_usd: 1.5
+    aliases: ["opus", "claude-opus-4-7", "anthropic/claude-opus-4-7"]
+  - slug: gpt-5-5
+    display_name: "GPT-5.5"
+    model_id: "openai/gpt-5.5"
+    provider_path: "openrouter"
+    model_family: "openai"
+    cohort: "premium"
+    context_window: null
+    max_output_tokens: 32768
+    premium: true
+    opt_in_required: true
+    pricing_source_url: "https://developers.openai.com/api/docs/pricing"
+    estimated_cost_per_run_usd: 0.8
+    aliases: ["gpt-5.5", "openai/gpt-5.5"]
+  - slug: gpt-5-4
+    display_name: "GPT-5.4"
+    model_id: "openai/gpt-5.4"
+    provider_path: "openrouter"
+    model_family: "openai"
+    cohort: "openai"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://developers.openai.com/api/docs/pricing"
+    estimated_cost_per_run_usd: 0.5
+    aliases: ["gpt-5.4", "openai/gpt-5.4"]
+  - slug: gpt-5-4-mini
+    display_name: "GPT-5.4 Mini"
+    model_id: "openai/gpt-5.4-mini"
+    provider_path: "openrouter"
+    model_family: "openai"
+    cohort: "openai"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://developers.openai.com/api/docs/pricing"
+    estimated_cost_per_run_usd: 0.25
+    aliases: ["gpt-5.4-mini", "openai/gpt-5.4-mini"]
+  - slug: gpt-5-4-nano
+    display_name: "GPT-5.4 Nano"
+    model_id: "openai/gpt-5.4-nano"
+    provider_path: "openrouter"
+    model_family: "openai"
+    cohort: "openai"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://developers.openai.com/api/docs/pricing"
+    estimated_cost_per_run_usd: 0.08
+    aliases: ["gpt-5.4-nano", "openai/gpt-5.4-nano"]
+  - slug: gpt-5-3-codex
+    display_name: "GPT-5.3 Codex"
+    model_id: "openai/gpt-5.3-codex"
+    provider_path: "openrouter"
+    model_family: "openai"
+    cohort: "openai"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://developers.openai.com/api/docs/pricing"
+    estimated_cost_per_run_usd: 0.45
+    aliases: ["gpt-5.3-codex", "openai/gpt-5.3-codex"]
+  - slug: gpt-5-3-codex-spark
+    display_name: "GPT-5.3 Codex Spark"
+    model_id: "openai/gpt-5.3-codex-spark"
+    provider_path: "openrouter"
+    model_family: "openai"
+    cohort: "premium"
+    context_window: null
+    max_output_tokens: 32768
+    premium: true
+    opt_in_required: true
+    pricing_source_url: "https://developers.openai.com/api/docs/pricing"
+    estimated_cost_per_run_usd: 0.65
+    aliases: ["gpt-5.3-codex-spark", "openai/gpt-5.3-codex-spark"]
+  - slug: gemini-3-flash-preview
+    display_name: "Gemini 3 Flash Preview"
+    model_id: "google/gemini-3-flash-preview"
+    provider_path: "openrouter"
+    model_family: "gemini"
+    cohort: "gemini"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://ai.google.dev/gemini-api/docs/pricing"
+    estimated_cost_per_run_usd: 0.12
+    aliases: ["gemini-3-flash", "google/gemini-3-flash-preview"]
+  - slug: gemini-3-1-flash-lite
+    display_name: "Gemini 3.1 Flash Lite"
+    model_id: "google/gemini-3.1-flash-lite"
+    provider_path: "openrouter"
+    model_family: "gemini"
+    cohort: "gemini"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://ai.google.dev/gemini-api/docs/pricing"
+    estimated_cost_per_run_usd: 0.04
+    aliases: ["gemini-flash-lite", "gemini-3.1-flash-lite", "google/gemini-3.1-flash-lite"]
+  - slug: gemini-3-1-pro-preview
+    display_name: "Gemini 3.1 Pro Preview"
+    model_id: "google/gemini-3.1-pro-preview"
+    provider_path: "openrouter"
+    model_family: "gemini"
+    cohort: "premium"
+    context_window: null
+    max_output_tokens: 32768
+    premium: true
+    opt_in_required: true
+    pricing_source_url: "https://ai.google.dev/gemini-api/docs/pricing"
+    estimated_cost_per_run_usd: 0.7
+    aliases: ["gemini-pro", "gemini-3.1-pro-preview", "google/gemini-3.1-pro-preview"]
+  - slug: kimi-k2-6
+    display_name: "Kimi K2.6"
+    model_id: "moonshotai/kimi-k2.6"
+    provider_path: "openrouter"
+    model_family: "kimi"
+    cohort: "rising"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://platform.kimi.ai/docs/pricing/chat-k26"
+    estimated_cost_per_run_usd: 0.12
+    aliases: ["kimi", "kimi-k2.6", "moonshotai/kimi-k2.6"]
+  - slug: kimi-k2-5
+    display_name: "Kimi K2.5"
+    model_id: "moonshotai/kimi-k2.5"
+    provider_path: "openrouter"
+    model_family: "kimi"
+    cohort: "rising"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://platform.kimi.ai/docs/pricing/chat-k26"
+    estimated_cost_per_run_usd: 0.1
+    aliases: ["kimi-k2.5", "moonshotai/kimi-k2.5"]
+  - slug: deepseek-v4-flash
+    display_name: "DeepSeek V4 Flash"
+    model_id: "deepseek/deepseek-v4-flash"
+    provider_path: "openrouter"
+    model_family: "deepseek"
+    cohort: "rising"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://openrouter.ai/deepseek/deepseek-v4-flash-20260423"
+    estimated_cost_per_run_usd: 0.03
+    aliases: ["deepseek", "deepseek-v4-flash", "deepseek/deepseek-v4-flash"]
+  - slug: deepseek-v4-pro
+    display_name: "DeepSeek V4 Pro"
+    model_id: "deepseek/deepseek-v4-pro"
+    provider_path: "openrouter"
+    model_family: "deepseek"
+    cohort: "rising"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://openrouter.ai/"
+    estimated_cost_per_run_usd: 0.18
+    aliases: ["deepseek-v4-pro", "deepseek/deepseek-v4-pro"]
+  - slug: deepseek-v3-2
+    display_name: "DeepSeek V3.2"
+    model_id: "deepseek/deepseek-v3.2"
+    provider_path: "openrouter"
+    model_family: "deepseek"
+    cohort: "rising"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://openrouter.ai/"
+    estimated_cost_per_run_usd: 0.08
+    aliases: ["deepseek-v3.2", "deepseek/deepseek-v3.2"]
+  - slug: qwen3-6-plus
+    display_name: "Qwen3.6 Plus"
+    model_id: "qwen/qwen3.6-plus"
+    provider_path: "openrouter"
+    model_family: "qwen"
+    cohort: "rising"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://openrouter.ai/qwen/qwen3.6-plus"
+    estimated_cost_per_run_usd: 0.08
+    aliases: ["qwen3.6-plus", "qwen/qwen3.6-plus"]
+  - slug: qwen3-coder-next
+    display_name: "Qwen3 Coder Next"
+    model_id: "qwen/qwen3-coder-next"
+    provider_path: "openrouter"
+    model_family: "qwen"
+    cohort: "rising"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://openrouter.ai/"
+    estimated_cost_per_run_usd: 0.05
+    aliases: ["qwen", "qwen3-coder-next", "qwen/qwen3-coder-next"]
+  - slug: minimax-m2-7
+    display_name: "MiniMax M2.7"
+    model_id: "minimax/minimax-m2.7"
+    provider_path: "openrouter"
+    model_family: "minimax"
+    cohort: "rising"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://openrouter.ai/minimax/minimax-m2.7-20260318"
+    estimated_cost_per_run_usd: 0.07
+    aliases: ["minimax", "minimax-m2.7", "minimax/minimax-m2.7"]
+  - slug: tencent-hy3-preview-free
+    display_name: "Tencent HY3 Preview Free"
+    model_id: "tencent/hy3-preview:free"
+    provider_path: "openrouter"
+    model_family: "tencent"
+    cohort: "experimental-free"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://openrouter.ai/"
+    estimated_cost_per_run_usd: 0
+    aliases: ["hy3-free", "tencent/hy3-preview:free"]
+  - slug: grok-4-1-fast
+    display_name: "Grok 4.1 Fast"
+    model_id: "x-ai/grok-4.1-fast"
+    provider_path: "openrouter"
+    model_family: "grok"
+    cohort: "optional-smoke"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://openrouter.ai/"
+    estimated_cost_per_run_usd: 0.2
+    aliases: ["grok-fast", "x-ai/grok-4.1-fast"]
+  - slug: glm-5-1
+    display_name: "GLM 5.1"
+    model_id: "glm-5.1"
+    provider_path: "direct-required"
+    model_family: "glm"
+    cohort: "glm"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://docs.z.ai/guides/overview/pricing"
+    estimated_cost_per_run_usd: 0.08
+    aliases: ["glm-5.1"]
+  - slug: glm-5
+    display_name: "GLM 5"
+    model_id: "glm-5"
+    provider_path: "direct-required"
+    model_family: "glm"
+    cohort: "glm"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://docs.z.ai/guides/overview/pricing"
+    estimated_cost_per_run_usd: 0.08
+    aliases: ["glm-5"]
+  - slug: glm-5-turbo
+    display_name: "GLM 5 Turbo"
+    model_id: "glm-5-turbo"
+    provider_path: "direct-required"
+    model_family: "glm"
+    cohort: "glm"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://docs.z.ai/guides/overview/pricing"
+    estimated_cost_per_run_usd: 0.04
+    aliases: ["glm-5-turbo"]
+  - slug: glm-4-7
+    display_name: "GLM 4.7"
+    model_id: "glm-4.7"
+    provider_path: "direct-required"
+    model_family: "glm"
+    cohort: "glm"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://docs.z.ai/guides/overview/pricing"
+    estimated_cost_per_run_usd: 0.04
+    aliases: ["glm-4.7"]
+  - slug: glm-4-7-flashx
+    display_name: "GLM 4.7 FlashX"
+    model_id: "glm-4.7-flashx"
+    provider_path: "direct-required"
+    model_family: "glm"
+    cohort: "glm"
+    context_window: null
+    max_output_tokens: 32768
+    premium: false
+    opt_in_required: false
+    pricing_source_url: "https://docs.z.ai/guides/overview/pricing"
+    estimated_cost_per_run_usd: 0.02
+    aliases: ["glm-4.7-flashx"]

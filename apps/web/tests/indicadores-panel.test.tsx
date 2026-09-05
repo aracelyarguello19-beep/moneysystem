@@ -30,9 +30,12 @@ const indicadoresBase = {
 const dashboardDataBase = {
   indicadores: indicadoresBase,
   valorInventario: "0",
+  totalGastosFijos: null,
   metaMinimaDiaria: null,
   saldosPorMoneda: [],
-  tendenciaMensual: [],
+  valorTotalCajaGs: "0",
+  monedasSinCotizacion: [],
+  tendencia: [],
   items: [],
   cuentasPorCobrar: [],
   movimientosRecientes: [],
@@ -46,7 +49,7 @@ describe("IndicadoresPanel", () => {
     const user = userEvent.setup();
 
     render(<IndicadoresPanel negocioId="negocio-1" />);
-    await screen.findByText("Ingresos Brutos");
+    await screen.findByText("Ventas del período");
 
     const primeraLlamada = vi.mocked(obtenerDashboard).mock.calls.length;
 
@@ -58,7 +61,7 @@ describe("IndicadoresPanel", () => {
 
     expect(vi.mocked(obtenerDashboard).mock.calls.length).toBeGreaterThan(primeraLlamada);
     // El mismo panel sigue montado — el título de la sección persiste sin re-crear la página.
-    expect(screen.getByText("Ingresos Brutos")).toBeInTheDocument();
+    expect(screen.getByText("Ventas del período")).toBeInTheDocument();
 
     const ultimaLlamada = vi.mocked(obtenerDashboard).mock.calls.at(-1);
     expect(ultimaLlamada?.[1]).toMatchObject({ desde: "2026-01-01" });

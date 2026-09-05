@@ -8,6 +8,7 @@ import { listarMonedas } from "@/actions/catalogos/listar-monedas";
 import { Card } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { useInventarioCambiado } from "@/lib/inventario-events";
+import { formatearMonto } from "@/lib/moneda";
 
 // Bento de saldo total por moneda (Efectivo + Banco, nunca Tarjeta — es
 // deuda, no liquidez) — mismo patrón que "Resumen de Saldos" de Stitch
@@ -56,7 +57,7 @@ export function CajaResumenMonedas({ negocioId }: { negocioId: string }) {
                 total.isNegative() ? "text-error" : "text-success"
               }`}
             >
-              {total.toString()}
+              {formatearMonto(total.toString(), moneda?.codigo)}
             </div>
             <div className="mt-2 text-right text-label-md text-on-surface-variant">
               {cantidadCuentas} cuenta{cantidadCuentas === 1 ? "" : "s"}

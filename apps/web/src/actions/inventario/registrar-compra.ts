@@ -7,6 +7,7 @@ import {
   assertCuentaFinancieraEsTarjeta,
   assertCuentaFinancieraNoEsTarjeta,
   assertItemEsProducto,
+  calcularCostoPromedioPonderado,
 } from "@repo/domain";
 import { registrarCompraSchema } from "@repo/domain/schemas";
 import {
@@ -58,10 +59,22 @@ export const registrarCompra = withErrorHandling(
         },
       });
 
+      // Costo promedio ponderado: se calcula con el stock/costo *previos* a
+      // esta compra (ver calcularCostoPromedioPonderado) — nunca se pisa con
+      // el costo de esta compra sola, para que dos compras del mismo ítem a
+      // precios distintos queden reflejadas en un único costo coherente.
+      const nuevoCostoCompra = calcularCostoPromedioPonderado(
+        item.stockActual.toString(),
+        item.costoCompra?.toString() ?? null,
+        parsed.cantidad,
+        parsed.costoUnitario
+      );
+
       await tx.item.update({
         where: { id: parsed.itemId },
         data: {
           stockActual: { increment: parsed.cantidad },
+          costoCompra: nuevoCostoCompra,
           tieneMovimientos: true,
         },
       });

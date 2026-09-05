@@ -1,0 +1,19 @@
+{
+  "entries": [
+    {
+      "id": "design-extractor",
+      "name": "design-extractor",
+      "version": "1.0.0",
+      "status": "active",
+      "description": "Squad agnóstico para extrair o design (tokens, cores, tipografia, espaçamento, componentes) a partir de uma URL ao vivo ou inputs fornecidos. Embute o tooling e",
+      "capabilities": [
+        "design-token-extraction",
+        "color-typography-extraction",
+        "component-inventory",
+        "design-md-generation"
+      ],
+      "agents_count": 1,
+      "path": "squads/design-extractor"
+    }
+  ]
+}

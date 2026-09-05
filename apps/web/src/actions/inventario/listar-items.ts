@@ -30,5 +30,7 @@ export const listarItems = withErrorHandling(async (negocioId: string): Promise<
     stockActual: item.stockActual.toString(),
     tieneMovimientos: item.tieneMovimientos,
     imagenUrl: item.imagenUrl,
+    nroCalce: item.nroCalce,
+    proveedor: item.proveedor,
   }));
 });

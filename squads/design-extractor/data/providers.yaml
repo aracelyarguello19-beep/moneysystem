@@ -1,0 +1,9 @@
+# Pointer to the embedded tooling's own configuration.
+# The extract-from-url subsystem carries its own providers/config under scripts/.
+tooling:
+  entry: scripts/extract-from-url/run.cjs
+  mcp_server: scripts/extract-from-url/mcp-server.cjs
+  readme: scripts/extract-from-url/README.md
+  note: >-
+    Provider list, flags, and runtime deps (headless browser, model keys) are documented
+    in the tooling README. Those are host-environment concerns, not squad coupling.

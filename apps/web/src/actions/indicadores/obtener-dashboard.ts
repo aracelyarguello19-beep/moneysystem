@@ -11,16 +11,29 @@ import type {
   TipoGasto,
   Venta,
 } from "@repo/domain";
-import { calcularIndicadores, calcularMetaMinimaDiaria, calcularTotalVenta } from "@repo/domain";
+import {
+  calcularIndicadores,
+  calcularMetaMinimaDiaria,
+  calcularTotalGastosFijos,
+  calcularTotalVenta,
+} from "@repo/domain";
 import { periodoFiltroSchema } from "@repo/domain/schemas";
 import { calcularValorInventario, withRlsContext } from "@repo/database";
 import { getCurrentAccount } from "@/lib/auth";
 import { withErrorHandling } from "@/lib/server-action-wrapper";
 
-const MESES_HACIA_ATRAS = 6;
+const NOMBRES_MES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-export interface PuntoTendenciaMensual {
-  mes: string; // "2026-08"
+// Por encima de este umbral de días la tendencia se agrupa por mes (si no,
+// un rango de "Este año" tendría un punto por día y el gráfico sería
+// ilegible); igual o por debajo, un punto por día — necesario para que
+// atajos como "Hoy", "Esta semana" o "Últimos 7 días" (Story: gráfico
+// filtrado junto con el resto del dashboard) sigan mostrando barras.
+const UMBRAL_DIAS_AGRUPACION_MENSUAL = 31;
+
+export interface PuntoTendencia {
+  clave: string; // "2026-08-05" (día) o "2026-08" (mes) — identifica el punto
+  etiqueta: string; // texto ya formateado para el eje ("05/08" o "Ago")
   ventas: string;
   gastos: string;
 }
@@ -33,9 +46,17 @@ export interface MovimientoCajaListado extends MovimientoCuenta {
 export interface DashboardData {
   indicadores: IndicadoresFinancieros;
   valorInventario: string;
+  totalGastosFijos: string | null;
   metaMinimaDiaria: string | null;
   saldosPorMoneda: { codigo: string; total: string }[];
-  tendenciaMensual: PuntoTendenciaMensual[];
+  // Suma de todas las cuentas Efectivo/Banco convertidas a Guaraníes con la
+  // última cotización cargada de cada moneda (Story rediseño Caja
+  // multimoneda) — las monedas sin ninguna cotización todavía se listan en
+  // `monedasSinCotizacion` y no se suman al total, para no computar con un
+  // 0 implícito.
+  valorTotalCajaGs: string;
+  monedasSinCotizacion: string[];
+  tendencia: PuntoTendencia[];
   items: Item[];
   cuentasPorCobrar: (CuentaPorCobrar & { fechaOrigen: Date })[];
   movimientosRecientes: MovimientoCajaListado[];
@@ -57,9 +78,6 @@ export const obtenerDashboard = withErrorHandling(
     const cuenta = await getCurrentAccount();
     if (!cuenta) throw new Error("No hay sesión activa");
 
-    const hoy = new Date();
-    const desdeTendencia = new Date(hoy.getFullYear(), hoy.getMonth() - (MESES_HACIA_ATRAS - 1), 1);
-
     return withRlsContext(cuenta.id, negocioId, async (tx) => {
       const [
         ventasPeriodo,
@@ -68,8 +86,6 @@ export const obtenerDashboard = withErrorHandling(
         gastosFijosRaw,
         cuentasFinancierasRaw,
         monedasRaw,
-        ventasTendencia,
-        gastosTendencia,
         cuentasPorCobrarRaw,
         movimientosRaw,
       ] = await Promise.all([
@@ -85,11 +101,6 @@ export const obtenerDashboard = withErrorHandling(
         tx.gastoFijo.findMany({ where: { cuentaId: cuenta.id, negocioId }, orderBy: { createdAt: "asc" } }),
         tx.cuentaFinanciera.findMany({ where: { cuentaId: cuenta.id, negocioId }, orderBy: { createdAt: "asc" } }),
         tx.moneda.findMany({ where: { cuentaId: cuenta.id, negocioId }, orderBy: { createdAt: "asc" } }),
-        tx.venta.findMany({
-          where: { negocioId, fecha: { gte: desdeTendencia }, estado: { not: "CANCELADA" } },
-          include: { ventaItems: true },
-        }),
-        tx.gasto.findMany({ where: { negocioId, fecha: { gte: desdeTendencia } } }),
         tx.cuentaPorCobrar.findMany({
           where: { negocioId },
           include: { venta: true },
@@ -108,12 +119,15 @@ export const obtenerDashboard = withErrorHandling(
           estado: v.estado as Venta["estado"],
           impuesto: v.impuesto.toString(),
           items: v.ventaItems.map((vi) => ({
-            itemTipo: vi.item.tipo as Item["tipo"],
+            // Venta libre de un producto fuera de catálogo: `vi.item` es
+            // null (nunca se crea un Item para eso) — se asume PRODUCTO,
+            // único tipo que puede venderse "libre".
+            itemTipo: (vi.item?.tipo as Item["tipo"] | undefined) ?? "PRODUCTO",
             cantidad: vi.cantidad?.toString() ?? null,
             cantidadDevuelta: vi.cantidadDevuelta.toString(),
             precioUnitario: vi.precioUnitario.toString(),
             costoServicio: vi.costoServicio?.toString() ?? null,
-            costoCompra: vi.costoUnitario?.toString() ?? vi.item.costoCompra?.toString() ?? null,
+            costoCompra: vi.costoUnitario?.toString() ?? vi.item?.costoCompra?.toString() ?? null,
           })),
         })),
         gastos: gastosPeriodo.map((g) => ({
@@ -135,6 +149,8 @@ export const obtenerDashboard = withErrorHandling(
         stockActual: item.stockActual.toString(),
         tieneMovimientos: item.tieneMovimientos,
         imagenUrl: item.imagenUrl,
+        nroCalce: item.nroCalce,
+        proveedor: item.proveedor,
       }));
 
       const gastosFijos: GastoFijo[] = gastosFijosRaw.map((g) => ({
@@ -146,6 +162,7 @@ export const obtenerDashboard = withErrorHandling(
         monedaId: g.monedaId,
         activo: g.activo,
       }));
+      const totalGastosFijos = calcularTotalGastosFijos(gastosFijos);
       const metaMinimaDiaria = calcularMetaMinimaDiaria(gastosFijos);
 
       const monedas: Moneda[] = monedasRaw.map((m) => ({
@@ -169,29 +186,123 @@ export const obtenerDashboard = withErrorHandling(
         total: total.toString(),
       }));
 
-      const tendenciaMensual: PuntoTendenciaMensual[] = [];
-      for (let i = MESES_HACIA_ATRAS - 1; i >= 0; i--) {
-        const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-        const mes = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}`;
+      // Última cotización cargada por moneda no base — una sola consulta
+      // para todas (no una por moneda) porque recién acá se conocen los
+      // ids de las monedas no base del negocio.
+      const monedaIdsNoBase = monedas.filter((m) => !m.esBase).map((m) => m.id);
+      const tasasRaw =
+        monedaIdsNoBase.length > 0
+          ? await tx.tasaCambio.findMany({
+              where: { monedaId: { in: monedaIdsNoBase } },
+              orderBy: { vigenteDesde: "desc" },
+            })
+          : [];
+      const tasaVigentePorMoneda = new Map<string, Decimal>();
+      for (const t of tasasRaw) {
+        if (!tasaVigentePorMoneda.has(t.monedaId)) tasaVigentePorMoneda.set(t.monedaId, t.tasa);
+      }
 
-        const ventasDelMes = ventasTendencia.filter(
-          (v) => v.fecha.getFullYear() === fecha.getFullYear() && v.fecha.getMonth() === fecha.getMonth()
+      let valorTotalCajaGs = new Decimal(0);
+      const monedasSinCotizacion: string[] = [];
+      for (const [monedaId, total] of totalesPorMoneda.entries()) {
+        const m = monedas.find((mm) => mm.id === monedaId);
+        if (m?.esBase) {
+          valorTotalCajaGs = valorTotalCajaGs.plus(total);
+          continue;
+        }
+        const tasa = tasaVigentePorMoneda.get(monedaId);
+        if (tasa) {
+          valorTotalCajaGs = valorTotalCajaGs.plus(total.times(tasa));
+        } else if (m) {
+          monedasSinCotizacion.push(m.codigo);
+        }
+      }
+
+      // Mismas ventas/gastos ya traídos para `indicadores` (acotados a
+      // parsed.desde/parsed.hasta) — antes esto se recalculaba con una
+      // consulta aparte anclada a "hoy", por lo que el gráfico mostraba
+      // siempre los últimos 6 meses ignorando el filtro de fecha elegido.
+      const ventasParaTendencia = ventasPeriodo.filter((v) => v.estado !== "CANCELADA");
+
+      const diasEnRango = Math.round((parsed.hasta.getTime() - parsed.desde.getTime()) / 86_400_000);
+      const agruparPorMes = diasEnRango > UMBRAL_DIAS_AGRUPACION_MENSUAL;
+
+      const tendencia: PuntoTendencia[] = [];
+      if (agruparPorMes) {
+        // `parsed.desde`/`parsed.hasta` y `venta.fecha`/`gasto.fecha` (columna
+        // `@db.Date` en Postgres) son fechas puras que Prisma/zod representan
+        // como medianoche UTC — hay que leerlas con los getters UTC. Usar
+        // getters en hora local acá corría el balde un día (y a veces un mes
+        // entero, ej. el 1° de enero) para cualquier huso detrás de UTC.
+        const inicio = new Date(Date.UTC(parsed.desde.getUTCFullYear(), parsed.desde.getUTCMonth(), 1));
+        const fin = new Date(Date.UTC(parsed.hasta.getUTCFullYear(), parsed.hasta.getUTCMonth(), 1));
+        for (const fecha = new Date(inicio); fecha <= fin; fecha.setUTCMonth(fecha.getUTCMonth() + 1)) {
+          const totalVentas = ventasParaTendencia
+            .filter(
+              (v) => v.fecha.getUTCFullYear() === fecha.getUTCFullYear() && v.fecha.getUTCMonth() === fecha.getUTCMonth()
+            )
+            .reduce((acc, v) => {
+              const total = calcularTotalVenta(
+                v.ventaItems.map((vi) => ({
+                  precioUnitario: vi.precioUnitario.toString(),
+                  cantidad: vi.cantidad?.toString() ?? null,
+                }))
+              );
+              return acc + Number(total);
+            }, 0);
+
+          const totalGastos = gastosPeriodo
+            .filter(
+              (g) => g.fecha.getUTCFullYear() === fecha.getUTCFullYear() && g.fecha.getUTCMonth() === fecha.getUTCMonth()
+            )
+            .reduce((acc, g) => acc + Number(g.monto), 0);
+
+          tendencia.push({
+            clave: `${fecha.getUTCFullYear()}-${String(fecha.getUTCMonth() + 1).padStart(2, "0")}`,
+            etiqueta: NOMBRES_MES[fecha.getUTCMonth()],
+            ventas: totalVentas.toString(),
+            gastos: totalGastos.toString(),
+          });
+        }
+      } else {
+        const inicio = new Date(
+          Date.UTC(parsed.desde.getUTCFullYear(), parsed.desde.getUTCMonth(), parsed.desde.getUTCDate())
         );
-        const totalVentas = ventasDelMes.reduce((acc, v) => {
-          const total = calcularTotalVenta(
-            v.ventaItems.map((vi) => ({
-              precioUnitario: vi.precioUnitario.toString(),
-              cantidad: vi.cantidad?.toString() ?? null,
-            }))
-          );
-          return acc + Number(total);
-        }, 0);
+        const fin = new Date(Date.UTC(parsed.hasta.getUTCFullYear(), parsed.hasta.getUTCMonth(), parsed.hasta.getUTCDate()));
+        for (const fecha = new Date(inicio); fecha <= fin; fecha.setUTCDate(fecha.getUTCDate() + 1)) {
+          const totalVentas = ventasParaTendencia
+            .filter(
+              (v) =>
+                v.fecha.getUTCFullYear() === fecha.getUTCFullYear() &&
+                v.fecha.getUTCMonth() === fecha.getUTCMonth() &&
+                v.fecha.getUTCDate() === fecha.getUTCDate()
+            )
+            .reduce((acc, v) => {
+              const total = calcularTotalVenta(
+                v.ventaItems.map((vi) => ({
+                  precioUnitario: vi.precioUnitario.toString(),
+                  cantidad: vi.cantidad?.toString() ?? null,
+                }))
+              );
+              return acc + Number(total);
+            }, 0);
 
-        const totalGastos = gastosTendencia
-          .filter((g) => g.fecha.getFullYear() === fecha.getFullYear() && g.fecha.getMonth() === fecha.getMonth())
-          .reduce((acc, g) => acc + Number(g.monto), 0);
+          const totalGastos = gastosPeriodo
+            .filter(
+              (g) =>
+                g.fecha.getUTCFullYear() === fecha.getUTCFullYear() &&
+                g.fecha.getUTCMonth() === fecha.getUTCMonth() &&
+                g.fecha.getUTCDate() === fecha.getUTCDate()
+            )
+            .reduce((acc, g) => acc + Number(g.monto), 0);
 
-        tendenciaMensual.push({ mes, ventas: totalVentas.toString(), gastos: totalGastos.toString() });
+          tendencia.push({
+            clave: `${fecha.getUTCFullYear()}-${String(fecha.getUTCMonth() + 1).padStart(2, "0")}-${String(fecha.getUTCDate()).padStart(2, "0")}`,
+            etiqueta: `${String(fecha.getUTCDate()).padStart(2, "0")}/${String(fecha.getUTCMonth() + 1).padStart(2, "0")}`,
+            ventas: totalVentas.toString(),
+            gastos: totalGastos.toString(),
+          });
+        }
       }
 
       const cuentasPorCobrar = cuentasPorCobrarRaw.map((c) => ({
@@ -220,9 +331,12 @@ export const obtenerDashboard = withErrorHandling(
       return {
         indicadores,
         valorInventario,
+        totalGastosFijos,
         metaMinimaDiaria,
         saldosPorMoneda,
-        tendenciaMensual,
+        valorTotalCajaGs: valorTotalCajaGs.toString(),
+        monedasSinCotizacion,
+        tendencia,
         items,
         cuentasPorCobrar,
         movimientosRecientes,

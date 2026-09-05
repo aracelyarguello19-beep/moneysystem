@@ -14,7 +14,7 @@ const ATAJOS = [
   },
   {
     href: "/laboral/gastos",
-    icon: "receipt_long",
+    icon: "receipt",
     titulo: "Tipos de gasto",
     descripcion: "Crear tipos de gasto y su clasificación, sección \"Tipos de gasto\" de Gastos.",
   },

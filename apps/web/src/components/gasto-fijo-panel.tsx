@@ -5,14 +5,14 @@ import type { GastoFijo, Moneda } from "@repo/domain";
 import { calcularMetaMinimaDiaria } from "@repo/domain";
 import { crearGastoFijo } from "@/actions/gastos/crear-gasto-fijo";
 import { listarGastosFijos } from "@/actions/gastos/listar-gastos-fijos";
-import { alternarGastoFijo } from "@/actions/gastos/alternar-gasto-fijo";
+import { eliminarGastoFijo } from "@/actions/gastos/eliminar-gasto-fijo";
 import { listarMonedas } from "@/actions/catalogos/listar-monedas";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { formatearMonto } from "@/lib/moneda";
 
 // Gastos recurrentes (alquiler, sueldos, suscripciones) separados del
 // registro día a día — su suma (solo activos) define la meta mínima diaria
@@ -58,8 +58,9 @@ export function GastoFijoPanel({ negocioId }: { negocioId: string }) {
     await cargar();
   }
 
-  async function onAlternar(g: GastoFijo) {
-    const result = await alternarGastoFijo(g.id, negocioId, !g.activo);
+  async function onEliminar(g: GastoFijo) {
+    if (!window.confirm(`¿Eliminar el gasto fijo "${g.nombre}"? Esta acción no se puede deshacer.`)) return;
+    const result = await eliminarGastoFijo(g.id, negocioId);
     if (result.ok) await cargar();
   }
 
@@ -102,15 +103,12 @@ export function GastoFijoPanel({ negocioId }: { negocioId: string }) {
 
       <div className="flex flex-col gap-2">
         {gastosFijos.map((g) => (
-          <Card key={g.id} className={`flex items-center justify-between ${g.activo ? "" : "opacity-50"}`}>
-            <span className="flex items-center gap-2 text-sm">
-              {g.nombre}
-              <Badge variant={g.activo ? "success" : "neutral"}>{g.activo ? "Activo" : "Inactivo"}</Badge>
-            </span>
+          <Card key={g.id} className="flex items-center justify-between">
+            <span className="text-sm">{g.nombre}</span>
             <span className="flex items-center gap-3 text-sm text-muted">
-              {g.monto}
-              <Button type="button" variant="link" onClick={() => onAlternar(g)}>
-                {g.activo ? "Desactivar" : "Activar"}
+              {formatearMonto(g.monto, monedas.find((m) => m.id === g.monedaId)?.codigo)}
+              <Button type="button" variant="link" onClick={() => onEliminar(g)}>
+                Eliminar
               </Button>
             </span>
           </Card>
@@ -119,7 +117,7 @@ export function GastoFijoPanel({ negocioId }: { negocioId: string }) {
 
       {gastosFijos.length > 0 && (
         <p className="text-sm text-muted">
-          Meta mínima diaria (total de fijos activos ÷ 20 días): <strong>{metaMinimaDiaria}</strong>
+          Meta mínima diaria (total de fijos activos ÷ 20 días): <strong>{formatearMonto(metaMinimaDiaria)}</strong>
         </p>
       )}
     </div>

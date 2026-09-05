@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatCard } from "@/components/ui/stat-card";
+import { formatearMonto } from "@/lib/moneda";
 
 type CxCConFecha = CuentaPorCobrar & { fechaOrigen: Date };
 
@@ -64,7 +65,7 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
         spotlight
         tone="primary"
         label="Total adeudado"
-        value={calcularTotalAdeudado(cuentas)}
+        value={formatearMonto(calcularTotalAdeudado(cuentas))}
         className="w-full sm:w-64"
       />
       <ul className="flex flex-col gap-3">
@@ -76,7 +77,7 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
               <span className="text-muted">{c.fechaOrigen.toString().slice(0, 10)}</span>
             </p>
             <p className="text-xs text-muted">
-              Debe {c.montoOriginal}, pagó {c.montoPagado}
+              Debe {formatearMonto(c.montoOriginal)}, pagó {formatearMonto(c.montoPagado)}
             </p>
             {c.estado !== "PAGADO" && (
               <div className="mt-2 flex items-end gap-2">

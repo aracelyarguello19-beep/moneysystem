@@ -4,99 +4,110 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Design tokens — puerto exacto del design system "Fiscal Precision"
- * (Stitch), fuente: /Users/andercandia/Downloads/stitch_gesti_n_financiera_empresarial
- * (DESIGN.md + code.html de cada pantalla). Nomenclatura Material Design 3:
- * cada superficie tiene su "on-*" (color de texto/ícono que va ENCIMA de
- * esa superficie) — nunca se hardcodea un color de texto suelto, siempre se
- * empareja con la superficie que lo contiene.
+ * Design tokens — puerto del design system "Ticto" (dash.ticto.com.br),
+ * extraído en vivo vía navegador autenticado — ver
+ * outputs/design-extractor/ticto-dashboard/DESIGN.md. Reemplaza a la
+ * paleta anterior "Fiscal Precision" (Stitch). Nomenclatura Material
+ * Design 3 conservada: cada superficie tiene su "on-*" (color de texto/
+ * ícono que va ENCIMA de esa superficie) — nunca se hardcodea un color de
+ * texto suelto, siempre se empareja con la superficie que lo contiene.
  *
- * Se mantienen además los alias semánticos viejos (bg-primary, text-ink,
+ * Sustitución documentada: Ticto usa dos familias tipográficas propias
+ * (Space Grotesk para UI/cuerpo + "Tomato Grotesk" — fuente comercial de
+ * Ticto, no distribuible — para títulos). Acá se usa Space Grotesk para
+ * ambos roles (peso 300 en headlines para aproximar el look "display
+ * liviano" del original sin infringir licencia).
+ *
+ * Se mantienen los alias semánticos viejos (bg-primary, text-ink,
  * border-default, etc.) apuntando a estos mismos valores, para que el
- * código que todavía no fue migrado a la nomenclatura nueva no rompa visualmente.
+ * código existente no rompa visualmente.
  */
 @theme {
-  /* --- Paleta exacta "Fiscal Precision" (tema claro, el único definido por Stitch) --- */
-  --color-surface: #f7f9fb;
-  --color-surface-dim: #d8dadc;
-  --color-surface-bright: #fcf8fa;
+  /* --- Paleta "Ticto" (tema claro) --- */
+  --color-surface: #fafafa;
+  --color-surface-dim: #eeeeee;
+  --color-surface-bright: #ffffff;
   --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f6f3f5;
-  --color-surface-container: #eceef0;
-  --color-surface-container-high: #eae7e9;
-  --color-surface-container-highest: #e4e2e4;
-  --color-surface-variant: #e4e2e4;
-  --color-on-surface: #1b1b1d;
-  --color-on-surface-variant: #45464d;
-  --color-inverse-surface: #303032;
+  --color-surface-container-low: #ffffff;
+  --color-surface-container: #f5f5f5;
+  --color-surface-container-high: #eeeeee;
+  --color-surface-container-highest: #e5e5e5;
+  --color-surface-variant: #eeeeee;
+  --color-on-surface: #000000;
+  --color-on-surface-variant: #666667;
+  --color-inverse-surface: #1b1b1d;
   --color-inverse-on-surface: #f3f0f2;
-  --color-outline: #76777d;
-  --color-outline-variant: #c6c6cd;
-  --color-surface-tint: #565e74;
+  --color-outline: #999999;
+  --color-outline-variant: #f1f1f1;
+  --color-surface-tint: #501bf0;
 
-  --color-primary: #000000;
+  --color-primary: #501bf0;
   --color-on-primary: #ffffff;
-  --color-primary-container: #131b2e;
-  --color-on-primary-container: #7c839b;
-  --color-inverse-primary: #bec6e0;
-  --color-primary-fixed: #dae2fd;
-  --color-primary-fixed-dim: #bec6e0;
-  --color-on-primary-fixed: #131b2e;
-  --color-on-primary-fixed-variant: #3f465c;
+  --color-primary-container: #ede7fd;
+  --color-on-primary-container: #501bf0;
+  --color-inverse-primary: #c9b8fa;
+  --color-primary-fixed: #ede7fd;
+  --color-primary-fixed-dim: #c9b8fa;
+  --color-on-primary-fixed: #2a1f4d;
+  --color-on-primary-fixed-variant: #501bf0;
 
-  --color-secondary: #515f74;
+  --color-secondary: #855be2;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #d5e3fd;
-  --color-on-secondary-container: #57657b;
-  --color-secondary-fixed: #d5e3fd;
-  --color-secondary-fixed-dim: #b9c7e0;
-  --color-on-secondary-fixed: #0d1c2f;
-  --color-on-secondary-fixed-variant: #3a485c;
+  --color-secondary-container: #f1ecfd;
+  --color-on-secondary-container: #501bf0;
+  --color-secondary-fixed: #f1ecfd;
+  --color-secondary-fixed-dim: #c9b8fa;
+  --color-on-secondary-fixed: #2a1f4d;
+  --color-on-secondary-fixed-variant: #501bf0;
 
-  --color-tertiary: #0ea5e9;
+  /* "tertiary" = verde marca (íconos/precios en Ticto) — acento natural
+     para montos en una app financiera. */
+  --color-tertiary: #2ead87;
   --color-on-tertiary: #ffffff;
-  --color-tertiary-container: #271901;
-  --color-on-tertiary-container: #98805d;
-  --color-tertiary-fixed: #fcdeb5;
-  --color-tertiary-fixed-dim: #dec29a;
-  --color-on-tertiary-fixed: #271901;
-  --color-on-tertiary-fixed-variant: #574425;
+  --color-tertiary-container: #e3f6ef;
+  --color-on-tertiary-container: #1f7a5c;
+  --color-tertiary-fixed: #fef0d5;
+  --color-tertiary-fixed-dim: #fadfa0;
+  --color-on-tertiary-fixed: #92400e;
+  --color-on-tertiary-fixed-variant: #92400e;
 
-  --color-error: #ba1a1a;
+  --color-error: #ef4444;
   --color-on-error: #ffffff;
-  --color-error-container: #ffdad6;
-  --color-on-error-container: #93000a;
+  --color-error-container: #fde8e8;
+  --color-on-error-container: #b91c1c;
 
-  --color-background: #fcf8fa;
-  --color-on-background: #1b1b1d;
+  --color-background: #fafafa;
+  --color-on-background: #000000;
 
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
+  --color-success: #38a169;
+  --color-warning: #faad14;
 
   /* --- Alias semánticos ya usados en componentes existentes --- */
   --color-surface-elevated: var(--color-surface-container-lowest);
   --color-ink: var(--color-on-surface);
-  --color-primary-hover: var(--color-inverse-surface);
+  --color-primary-hover: #3d14bf;
   --color-primary-subtle: var(--color-secondary-container);
   --color-danger: var(--color-error);
-  --color-danger-hover: #93000a;
+  --color-danger-hover: #dc2626;
   --color-danger-subtle: var(--color-error-container);
-  --color-warning-subtle: #fef3c7;
+  --color-warning-subtle: #fff7e0;
   --color-warning-text: #92400e;
   --color-neutral-bg: var(--color-surface-container-high);
   --color-default: var(--color-outline-variant);
   --color-muted: var(--color-on-surface-variant);
   --color-subtle: var(--color-outline);
 
-  /* --- Tipografía y forma exactas de Stitch --- */
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --radius-DEFAULT: 0.125rem;
-  --radius-lg: 0.25rem;
-  --radius-xl: 0.5rem;
+  /* --- Tipografía y forma "Ticto" --- */
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --radius-DEFAULT: 0.5rem;
+  --radius-lg: 1rem;
+  --radius-xl: 0.75rem;
   --spacing-gutter: 16px;
   --spacing-margin-mobile: 16px;
-  --spacing-margin-desktop: 32px;
-  --spacing-sidebar-width: 260px;
+  --spacing-margin-desktop: 30px;
+  --spacing-sidebar-width: 72px;
+  --spacing-sidebar-width-expanded: 230px;
 
   /*
    * Escala tipográfica exacta de Stitch. El peso de fuente que Stitch
@@ -123,43 +134,48 @@
 }
 
 /*
- * Tema dark — Stitch no define una paleta oscura completa (solo tema claro).
- * Se deriva una siguiendo la misma convención M3: superficies oscuras
- * (inverse-surface/inverse-on-surface ya están pensados para esto en la
- * propia paleta clara), acentos (primary/success/warning/error) un tono más
- * claro para mantener contraste.
+ * Tema dark — Ticto sí define un tema oscuro real (`data-theme="dark"` +
+ * `localStorage.theme`, ver DESIGN.md). El acento de marca (morado
+ * `#501bf0`) y los colores semánticos (danger/success/warning) se
+ * mantienen literalmente iguales entre temas — documentado explícitamente
+ * en la extracción — solo cambian superficies y texto.
  *
  * `.dark` (no `data-theme`) porque es la clase que `ThemeToggle` alterna en
  * `<html>` — la misma que habilita la variante `dark:` de Tailwind arriba.
  */
 .dark {
-  --color-surface: #18181a;
-  --color-surface-dim: #0f0f10;
-  --color-surface-bright: #232325;
-  --color-surface-container-lowest: #101011;
-  --color-surface-container-low: #1c1c1e;
-  --color-surface-container: #232325;
-  --color-surface-container-high: #2b2b2e;
-  --color-surface-container-highest: #333336;
-  --color-surface-variant: #2b2b2e;
-  --color-on-surface: #f3f0f2;
-  --color-on-surface-variant: #c6c6cd;
-  --color-outline: #8e8e94;
-  --color-outline-variant: #45464d;
+  --color-surface: #000000;
+  --color-surface-dim: #000000;
+  --color-surface-bright: #18181c;
+  --color-surface-container-lowest: #212129;
+  --color-surface-container-low: #121215;
+  --color-surface-container: #1c1c22;
+  --color-surface-container-high: #26262e;
+  --color-surface-container-highest: #303038;
+  --color-surface-variant: #26262e;
+  --color-on-surface: #ffffff;
+  --color-on-surface-variant: #a0a0a3;
+  --color-outline: #5a5a5b;
+  --color-outline-variant: #2a2a30;
 
-  --color-primary: #ffffff;
-  --color-on-primary: #131b2e;
-  --color-primary-container: #7c839b;
-  --color-on-primary-container: #131b2e;
+  /* El morado de marca NO se invierte por tema (a diferencia del negro/
+     blanco de Fiscal Precision) — Ticto lo mantiene literal en dark. */
+  --color-primary: #501bf0;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #2a1f4d;
+  --color-on-primary-container: #c9b8fa;
 
-  --color-secondary-container: #3a485c;
-  --color-on-secondary-container: #d5e3fd;
+  --color-secondary-container: #2a1f4d;
+  --color-on-secondary-container: #c9b8fa;
 
-  --color-error-container: #93000a;
-  --color-on-error-container: #ffdad6;
+  --color-tertiary-container: #123829;
+  --color-on-tertiary-container: #6ee0b8;
 
-  --color-background: #101011;
-  --color-on-background: #f3f0f2;
+  --color-error-container: #3a1518;
+  --color-on-error-container: #fca5a5;
+
+  --color-background: #000000;
+  --color-on-background: #ffffff;
 }
 
 @layer base {
@@ -170,15 +186,16 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-tertiary);
+    outline: 2px solid var(--color-primary);
     outline-offset: 2px;
   }
 }
 
-/* Material Symbols: por defecto "outline" (peso 400, sin relleno); [data-weight="fill"] lo rellena para el estado activo. */
+/* Material Symbols: la clase queda en "outline" (peso 400, sin relleno) como
+   base — el componente <Icon> (apps/web/src/components/ui/icon.tsx) rellena
+   por defecto vía estilo inline (`fill=true` de fábrica, look dominante del
+   design system Ticto); esta base solo se usa cuando se pasa `fill={false}`
+   explícito para un acento puntual en outline. */
 .material-symbols-outlined {
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
-}
-[data-weight="fill"] .material-symbols-outlined {
-  font-variation-settings: "FILL" 1;
 }

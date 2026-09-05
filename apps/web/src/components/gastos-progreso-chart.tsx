@@ -1,4 +1,5 @@
 import type { GastoResumenTipo } from "@repo/domain";
+import { formatearMonto } from "@/lib/moneda";
 
 const COLORES = [
   "bg-primary",
@@ -25,7 +26,7 @@ export function GastosProgresoChart({ gastos }: { gastos: GastoResumenTipo[] }) 
         <div key={`${g.tipoGastoId}:${g.ambito}`}>
           <div className="mb-1 flex justify-between text-body-md">
             <span className="text-on-surface">{g.nombre}</span>
-            <span className="font-medium text-on-surface">{g.total}</span>
+            <span className="font-medium text-on-surface">{formatearMonto(g.total)}</span>
           </div>
           <div className="h-2 w-full rounded-full bg-surface-container">
             <div

@@ -1,6 +1,7 @@
 import type { MovimientoCajaListado } from "@/actions/indicadores/obtener-dashboard";
 import { Card } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
+import { formatearMonto } from "@/lib/moneda";
 
 const MAX_FILAS = 4;
 
@@ -49,7 +50,7 @@ export function ActividadReciente({ movimientos }: { movimientos: MovimientoCaja
                   </p>
                   <p className="text-label-md text-on-surface-variant">
                     {m.fecha.toString().slice(0, 10)} · {m.tipo === "INGRESO" ? "+" : "-"}
-                    {m.monto} {m.monedaCodigo}
+                    {formatearMonto(m.monto, m.monedaCodigo)}
                   </p>
                 </div>
               </li>

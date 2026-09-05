@@ -139,6 +139,8 @@ model Item {
   stockActual      Decimal  @default(0) @map("stock_actual") @db.Decimal(18, 4)
   tieneMovimientos Boolean  @default(false) @map("tiene_movimientos")
   imagenUrl        String?  @map("imagen_url")
+  nroCalce         String?  @map("nro_calce")
+  proveedor        String?
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   negocio    Negocio     @relation(fields: [negocioId], references: [id], onDelete: Cascade)
@@ -228,7 +230,14 @@ model Venta {
 model VentaItem {
   id               String   @id @default(uuid()) @db.Uuid
   ventaId          String   @map("venta_id") @db.Uuid
-  itemId           String   @map("item_id") @db.Uuid
+  // Nullable desde Story rediseño Venta Libre: una línea "venta libre" de un
+  // producto que NO está en el catálogo no tiene `itemId` — no se crea un
+  // Item nuevo a propósito (nunca se "cataloga" silenciosamente algo que el
+  // dueño no pidió tener en su inventario). En ese caso `nombreLibre` es la
+  // única identificación de esa línea (`chk_venta_item_producto_libre` en la
+  // migración exige uno u otro).
+  itemId           String?  @map("item_id") @db.Uuid
+  nombreLibre      String?  @map("nombre_libre")
   cantidad         Decimal? @db.Decimal(18, 4)
   precioUnitario   Decimal  @map("precio_unitario") @db.Decimal(18, 4)
   costoServicio    Decimal? @map("costo_servicio") @db.Decimal(18, 4)
@@ -239,7 +248,7 @@ model VentaItem {
   esLibre          Boolean  @default(false) @map("es_libre")
 
   venta Venta @relation(fields: [ventaId], references: [id], onDelete: Cascade)
-  item  Item  @relation(fields: [itemId], references: [id])
+  item  Item? @relation(fields: [itemId], references: [id])
 
   @@map("venta_items")
 }

@@ -15,6 +15,10 @@ export const crearItemSchema = z.discriminatedUnion("tipo", [
     costoCompra: decimalStringSchema,
     stockActual: decimalStringSchema,
     imagenUrl: z.string().url().optional(),
+    // Identidad de variante (ej. número de calce) y proveedor habitual —
+    // solo tiene sentido para Producto, nunca para Servicio.
+    nroCalce: z.string().trim().min(1).optional(),
+    proveedor: z.string().trim().min(1).optional(),
   }),
   z.object({
     tipo: z.literal("SERVICIO"),

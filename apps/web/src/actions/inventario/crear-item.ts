@@ -26,11 +26,14 @@ export const crearItem = withErrorHandling(
           costoCompra: parsed.costoCompra,
           stockActual: parsed.stockActual,
           imagenUrl: parsed.imagenUrl ?? null,
+          nroCalce: parsed.tipo === "PRODUCTO" ? (parsed.nroCalce ?? null) : null,
+          proveedor: parsed.tipo === "PRODUCTO" ? (parsed.proveedor ?? null) : null,
         },
       })
     );
 
     revalidatePath("/laboral/inventario");
+    revalidatePath("/laboral/compras");
     revalidatePath("/laboral/servicios");
 
     return {
@@ -44,6 +47,8 @@ export const crearItem = withErrorHandling(
       stockActual: item.stockActual.toString(),
       tieneMovimientos: item.tieneMovimientos,
       imagenUrl: item.imagenUrl,
+      nroCalce: item.nroCalce,
+      proveedor: item.proveedor,
     };
   }
 );

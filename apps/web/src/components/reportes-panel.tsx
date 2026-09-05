@@ -5,9 +5,11 @@ import type { GastoResumenTipo, ProductoVendidoResumen } from "@repo/domain";
 import { obtenerReporte } from "@/actions/reportes/obtener-reporte";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { GastosProgresoChart } from "@/components/gastos-progreso-chart";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
+import { Icon } from "@/components/ui/icon";
+import { formatearMonto } from "@/lib/moneda";
 
 function primerDiaDelMes(): string {
   const hoy = new Date();
@@ -55,58 +57,83 @@ export function ReportesPanel({ negocioId }: { negocioId: string }) {
         </p>
       )}
 
-      <div className="flex flex-wrap gap-3">
-        {estrella && (
-          <StatCard spotlight tone="primary" icon="⭐" label={`Producto estrella`} value={estrella.nombre} />
-        )}
-        {gastos.length > 0 && (
-          <StatCard tone="danger" label="Total gastos del período" value={totalGastos.toString()} />
-        )}
-      </div>
+      {(estrella || gastos.length > 0) && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {estrella && (
+            <StatCard
+              spotlight
+              tone="primary"
+              icon={<Icon name="star" fill />}
+              label="Producto estrella"
+              value={estrella.nombre}
+            />
+          )}
+          {gastos.length > 0 && (
+            <StatCard
+              tone="danger"
+              icon={<Icon name="receipt" />}
+              label="Total gastos del período"
+              value={formatearMonto(totalGastos.toString())}
+            />
+          )}
+        </div>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Productos vendidos</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
+          Productos vendidos
+        </h2>
+        <Card className="flex flex-col overflow-hidden p-0">
           {productos.length === 0 ? (
-            <p className="text-sm text-muted">No hay ventas en el período elegido.</p>
+            <p className="px-4 py-8 text-center text-body-md text-on-surface-variant">
+              No hay ventas en el período elegido.
+            </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-default text-left text-xs uppercase text-muted">
-                    <th className="py-1">Producto</th>
-                    <th className="py-1">Cantidad vendida</th>
-                    <th className="py-1">Ingresos</th>
+              <table className="w-full min-w-[480px] border-collapse text-left">
+                <thead className="bg-surface-container">
+                  <tr>
+                    <th className="px-4 py-3 text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">
+                      Producto
+                    </th>
+                    <th className="px-4 py-3 text-right text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">
+                      Cantidad vendida
+                    </th>
+                    <th className="px-4 py-3 text-right text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">
+                      Ingresos
+                    </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-outline-variant">
                   {productos.map((p, i) => (
-                    <tr key={p.itemId} className="border-b border-default">
-                      <td className="py-1">
-                        {i === 0 && <Badge variant="success" className="mr-2">Estrella</Badge>}
-                        {p.nombre}
+                    <tr key={p.itemId} className="transition-colors hover:bg-surface-container-low">
+                      <td className="px-4 py-3">
+                        <span className="flex items-center gap-2 text-body-md font-medium text-on-surface">
+                          {i === 0 && <Badge variant="success">Estrella</Badge>}
+                          {p.nombre}
+                        </span>
                       </td>
-                      <td className="py-1">{p.cantidadVendida}</td>
-                      <td className="py-1">{p.ingresos}</td>
+                      <td className="px-4 py-3 text-right text-body-md text-on-surface">{p.cantidadVendida}</td>
+                      <td className="px-4 py-3 text-right text-body-md font-medium text-on-surface">
+                        {formatearMonto(p.ingresos)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </Card>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Gastos por categoría</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
+          Gastos por categoría
+        </h2>
+        <Card>
           <GastosProgresoChart gastos={gastos} />
-        </CardContent>
-      </Card>
+        </Card>
+      </section>
     </div>
   );
 }

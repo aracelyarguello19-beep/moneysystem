@@ -1,0 +1,74 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Squad: Design Extractor
+# Domain: Extract design tokens/system from a live URL or screenshot
+# Wrapper squad: 1 agent + the extract-from-url tooling embedded under scripts/.
+# Agnostic — workspace_integration.level = none.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+pack:
+  name: design-extractor
+  version: "1.0.0"
+  description: >-
+    Squad agnóstico para extrair o design (tokens, cores, tipografia, espaçamento,
+    componentes) a partir de uma URL ao vivo ou inputs fornecidos. Embute o tooling
+    extract-from-url e o expõe via um agent wrapper. Não depende de workspace de business.
+  icon: "🎨"
+
+entry_agent: design-extractor
+
+squad:
+  name: design-extractor
+  display_name: "Design Extractor Squad"
+  version: "1.0.0"
+  domain: "Design Extraction from URL"
+  description: |
+    Wrapper agnóstico do subsistema extract-from-url (97 arquivos de tooling) com um
+    agent que orquestra a extração e produz um DESIGN.md / tokens a partir de uma URL.
+  keywords:
+    - design-extraction
+    - extract-from-url
+    - design-tokens
+    - brand-extraction
+    - css-extraction
+  entry_agent: design-extractor
+  created_by: export-squad-greenfield
+  created_at: "2026-06-08"
+  tested: false
+
+workspace_integration:
+  level: none
+  rationale: >-
+    Design Extractor é self-contained. Recebe a URL/inputs na chamada e usa o tooling
+    embutido em scripts/extract-from-url. Não lê workspace/businesses. Saídas em outputs/.
+
+capabilities:
+  - design-token-extraction
+  - color-typography-extraction
+  - component-inventory
+  - design-md-generation
+
+agents:
+  - id: design-extractor
+    executor_profile:
+      sinkra_type: Agent
+      human_in_the_loop: true
+      output_schema: "DESIGN.md + tokens per templates/design-extract-report-tmpl.md"
+      story_role: executor
+      can_execute: true
+      core_replaces: null
+      work_contexts: ["general"]
+      can_review: ["design"]
+    file: agents/design-extractor.md
+    role: Design Extraction Specialist
+    status: active
+    is_lead: true
+
+artifact_contracts:
+  - artifact_id: design-extract-report
+    template_path: templates/design-extract-report-tmpl.md
+    lifecycle_states: [draft, validated]
+
+activation:
+  entry_agent: design-extractor
+  shortcuts:
+    - "/design-extractor:design-extractor"

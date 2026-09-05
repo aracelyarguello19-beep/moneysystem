@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { formatearMonto } from "@/lib/moneda";
 
 // AC3 (Story 3.2): marca visualmente las líneas de Servicio sin
 // `costoServicio` registrado como "dato incompleto" — nunca las rechaza, el
@@ -81,11 +82,13 @@ export function VentasLista({ negocioId }: { negocioId: string }) {
             <div className="flex items-center gap-3">
               <span className="text-sm font-semibold text-success">
                 +
-                {calcularTotalVenta(
-                  venta.items.map((item) => ({
-                    precioUnitario: item.precioUnitario,
-                    cantidad: item.cantidad,
-                  }))
+                {formatearMonto(
+                  calcularTotalVenta(
+                    venta.items.map((item) => ({
+                      precioUnitario: item.precioUnitario,
+                      cantidad: item.cantidad,
+                    }))
+                  )
                 )}
               </span>
               {venta.estado !== "CANCELADA" && (
@@ -99,7 +102,7 @@ export function VentasLista({ negocioId }: { negocioId: string }) {
             {venta.items.map((item) => (
               <li key={item.id} className="flex items-center gap-2 text-sm">
                 <span>{item.itemNombre}</span>
-                <span className="text-muted">{item.precioUnitario}</span>
+                <span className="text-muted">{formatearMonto(item.precioUnitario)}</span>
                 {item.itemTipo === "PRODUCTO" && (
                   <span className="text-xs text-subtle">
                     devuelto: {item.cantidadDevuelta}/{item.cantidad}

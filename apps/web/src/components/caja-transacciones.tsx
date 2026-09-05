@@ -7,6 +7,7 @@ import {
 } from "@/actions/cuentas-financieras/listar-movimientos-caja";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInventarioCambiado } from "@/lib/inventario-events";
+import { formatearMonto } from "@/lib/moneda";
 
 const ETIQUETA_REFERENCIA: Record<string, string> = {
   COMPRA: "Compra",
@@ -64,7 +65,7 @@ export function CajaTransacciones({ negocioId }: { negocioId: string }) {
                     m.tipo === "INGRESO" ? "text-success" : "text-error"
                   }`}
                 >
-                  {m.tipo === "INGRESO" ? "+" : "-"} {m.monto} {m.monedaCodigo}
+                  {m.tipo === "INGRESO" ? "+" : "-"} {formatearMonto(m.monto, m.monedaCodigo)}
                 </td>
               </tr>
             ))}

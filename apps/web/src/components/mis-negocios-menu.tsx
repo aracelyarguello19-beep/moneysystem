@@ -6,6 +6,7 @@ import type { Negocio } from "@repo/domain";
 import { listarNegocios } from "@/actions/negocios/listar-negocios";
 import { useNegocioActivoStore } from "@/stores/negocio-activo.store";
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 
 // Switcher de negocio activo — puro, sin acciones de cuenta (Mi perfil /
 // Cerrar sesión viven en UserMenu, a la derecha del header).
@@ -57,7 +58,7 @@ export function MisNegociosMenu() {
         <span className="truncate">
           {negocioActivo ? negocioActivo.nombre : "Mis negocios"}
         </span>
-        <span className="ml-2 text-xs">▾</span>
+        <Icon name="expand_more" className="ml-2 text-[16px]" />
       </Button>
 
       {abierto && (
@@ -80,16 +81,17 @@ export function MisNegociosMenu() {
               }`}
             >
               {n.nombre}
-              {n.id === negocioActivoId && <span className="text-primary">✓</span>}
+              {n.id === negocioActivoId && <Icon name="check" className="text-[16px] text-primary" />}
             </Button>
           ))}
 
           <Link
             href="/negocios"
             onClick={() => setAbierto(false)}
-            className="block border-t px-3 py-2 text-sm hover:bg-neutral-bg"
+            className="flex items-center gap-1.5 border-t px-3 py-2 text-sm hover:bg-neutral-bg"
           >
-            + Crear / administrar negocios
+            <Icon name="add" className="text-[16px]" />
+            Crear / administrar negocios
           </Link>
         </div>
       )}

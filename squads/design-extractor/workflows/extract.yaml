@@ -1,0 +1,20 @@
+# Workflow: Design Extraction (single-agent wrapper over embedded tooling)
+name: extract
+description: URL → DESIGN.md extraction via the embedded extract-from-url pipeline.
+entry_agent: design-extractor
+
+phases:
+  - id: input
+    agent: design-extractor
+    task: tasks/extract-design.md
+    elicit: true
+    description: Confirm URL/inputs + extraction focus.
+  - id: run
+    agent: design-extractor
+    task: tasks/extract-design.md
+    description: Run scripts/extract-from-url/run.cjs and collect output.
+  - id: emit
+    agent: design-extractor
+    output: outputs/design-extractor/{slug}/DESIGN.md
+    checklist: checklists/extraction-quality-checklist.md
+    description: Assemble report + mark gaps + run the checklist.

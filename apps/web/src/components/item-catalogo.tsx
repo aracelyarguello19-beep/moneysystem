@@ -1,30 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import type { Item, Moneda } from "@repo/domain";
 import { calcularGananciaProducto } from "@repo/domain";
 import { crearItem } from "@/actions/inventario/crear-item";
 import { editarItem } from "@/actions/inventario/editar-item";
-import { listarItems } from "@/actions/inventario/listar-items";
-import { listarMonedas } from "@/actions/catalogos/listar-monedas";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import dynamic from "next/dynamic";
 
 // Carga diferida: `ImagenItemUpload` trae el cliente completo de
 // `@supabase/supabase-js` (~110kB) solo para subir una foto — sin esto, ese
 // peso viaja en el bundle inicial de /laboral/inventario aunque el usuario
-// nunca abra "Nuevo producto" ni edite un ítem.
+// nunca abra "Agregar producto" ni edite un ítem.
 const ImagenItemUpload = dynamic(
   () => import("@/components/imagen-item-upload").then((m) => m.ImagenItemUpload),
   { ssr: false }
 );
-import { emitirInventarioCambiado, useInventarioCambiado } from "@/lib/inventario-events";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
+import { formatearMonto } from "@/lib/moneda";
 
 const UMBRAL_STOCK_BAJO = 5;
 
@@ -35,14 +32,35 @@ function estadoStock(stockActual: string): { label: string; variant: "success" |
   return { label: "En stock", variant: "success" };
 }
 
-// Catálogo de productos — mismo patrón de tabla que "Control de Inventario
-// y Stock" (Stitch): toolbar con búsqueda + tabla con foto, precio, costo,
-// stock y estado. Único consumidor: /laboral/inventario (Servicios ya no
-// existe como sesión), por eso queda enfocado en tipo Producto.
+function valorTotal(item: Pick<Item, "stockActual" | "costoCompra">): string {
+  return (Number(item.stockActual) * Number(item.costoCompra ?? 0)).toString();
+}
+
+// Catálogo de Inventario — sesión "Productos" › Inventario: stock y
+// valorización combinados por producto (cada compra registrada en la sesión
+// "Compras" actualiza el stock y el costo promedio ponderado de acá, ver
+// registrar-compra.ts). "Agregar producto" solo pide identidad de catálogo
+// (nombre/proveedor/nro de calce/foto) — precio, costo y stock inicial
+// arrancan en 0 a propósito: se cargan comprando, nunca acá, para no
+// contarlos dos veces (mismo criterio que "+ Nuevo producto" en Compras).
 // [Source: architecture/frontend-architecture.md#Component Organization]
-export function ItemCatalogo({ negocioId }: { negocioId: string }) {
-  const [items, setItems] = useState<Item[] | null>(null);
-  const [monedas, setMonedas] = useState<Moneda[]>([]);
+// `items`/`monedas` vienen ya cargados de InventarioPage (una sola
+// transacción para toda la página, ver obtener-inventario.ts) — este
+// componente ya no pide sus propios datos, solo dispara `onCambio` después
+// de crear/editar para que la página vuelva a pedirlos.
+export function ItemCatalogo({
+  negocioId,
+  items,
+  monedas: monedasTodas,
+  onCambio,
+}: {
+  negocioId: string;
+  items: Item[];
+  monedas: Moneda[];
+  onCambio: () => void;
+}) {
+  const monedas = monedasTodas.filter((m) => m.activa);
+  const codigoMoneda = (monedaId: string) => monedasTodas.find((m) => m.id === monedaId)?.codigo;
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
@@ -50,44 +68,29 @@ export function ItemCatalogo({ negocioId }: { negocioId: string }) {
   const [filtro, setFiltro] = useState<"todos" | "bajo_stock">("todos");
 
   const [nombre, setNombre] = useState("");
-  const [precioVenta, setPrecioVenta] = useState("");
-  const [monedaId, setMonedaId] = useState("");
-  const [costoCompra, setCostoCompra] = useState("");
-  const [stockActual, setStockActual] = useState("");
+  const [proveedor, setProveedor] = useState("");
+  const [nroCalce, setNroCalce] = useState("");
   const [imagenUrl, setImagenUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const cargar = useCallback(async () => {
-    const [itemsResult, monedasResult] = await Promise.all([
-      listarItems(negocioId),
-      listarMonedas(negocioId),
-    ]);
-    if (itemsResult.ok) setItems(itemsResult.data.filter((i) => i.tipo === "PRODUCTO"));
-    if (monedasResult.ok) {
-      setMonedas(monedasResult.data.filter((m) => m.activa));
-      setMonedaId((actual) => actual || monedasResult.data.find((m) => m.esBase)?.id || "");
-    }
-  }, [negocioId]);
-
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
-
-  useInventarioCambiado(cargar);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setServerMessage(null);
     setIsSubmitting(true);
 
+    const monedaId = monedas.find((m) => m.esBase)?.id ?? monedas[0]?.id ?? "";
     const result = await crearItem(negocioId, {
       tipo: "PRODUCTO",
       nombre,
-      precioVenta,
+      precioVenta: "0",
       monedaId,
-      costoCompra,
-      stockActual,
+      // Arranca sin costo ni stock: los carga "Registrar compra" en la
+      // sesión Compras, nunca el alta de catálogo.
+      costoCompra: "0",
+      stockActual: "0",
       imagenUrl: imagenUrl ?? undefined,
+      proveedor: proveedor.trim() || undefined,
+      nroCalce: nroCalce.trim() || undefined,
     });
     setIsSubmitting(false);
     if (!result.ok) {
@@ -95,18 +98,16 @@ export function ItemCatalogo({ negocioId }: { negocioId: string }) {
       return;
     }
     setNombre("");
-    setPrecioVenta("");
-    setCostoCompra("");
-    setStockActual("");
+    setProveedor("");
+    setNroCalce("");
     setImagenUrl(null);
     setCreandoAbierto(false);
-    await cargar();
-    emitirInventarioCambiado();
+    onCambio();
   }
 
-  const bajoStock = (items ?? []).filter((item) => Number(item.stockActual) <= UMBRAL_STOCK_BAJO);
+  const bajoStock = items.filter((item) => Number(item.stockActual) <= UMBRAL_STOCK_BAJO);
 
-  const filtrados = (filtro === "bajo_stock" ? bajoStock : items ?? []).filter((item) =>
+  const filtrados = (filtro === "bajo_stock" ? bajoStock : items).filter((item) =>
     item.nombre.toLowerCase().includes(busqueda.toLowerCase())
   );
 
@@ -122,7 +123,7 @@ export function ItemCatalogo({ negocioId }: { negocioId: string }) {
             }`}
           >
             Todos
-            <span className="rounded-full bg-surface-tint/30 px-1.5 text-[10px]">{(items ?? []).length}</span>
+            <span className="rounded-full bg-surface-tint/30 px-1.5 text-[10px]">{items.length}</span>
           </button>
           <button
             type="button"
@@ -153,7 +154,7 @@ export function ItemCatalogo({ negocioId }: { negocioId: string }) {
           </div>
           <Button type="button" onClick={() => setCreandoAbierto((v) => !v)} className="gap-2">
             <Icon name="add" fill className="text-[18px]" />
-            Nuevo producto
+            Agregar producto
           </Button>
         </div>
       </div>
@@ -163,41 +164,11 @@ export function ItemCatalogo({ negocioId }: { negocioId: string }) {
           <FormField htmlFor="nombre-item" label="Nombre">
             <Input id="nombre-item" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
           </FormField>
-          <FormField htmlFor="precio-venta" label="Precio de venta">
-            <Input
-              id="precio-venta"
-              value={precioVenta}
-              onChange={(e) => setPrecioVenta(e.target.value)}
-              required
-              className="w-28"
-            />
+          <FormField htmlFor="proveedor-item" label="Proveedor (opcional)">
+            <Input id="proveedor-item" value={proveedor} onChange={(e) => setProveedor(e.target.value)} />
           </FormField>
-          <FormField htmlFor="moneda-item" label="Moneda">
-            <Select id="moneda-item" value={monedaId} onChange={(e) => setMonedaId(e.target.value)} required>
-              {monedas.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.codigo}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-          <FormField htmlFor="costo-compra" label="Costo de compra">
-            <Input
-              id="costo-compra"
-              value={costoCompra}
-              onChange={(e) => setCostoCompra(e.target.value)}
-              required
-              className="w-28"
-            />
-          </FormField>
-          <FormField htmlFor="stock-actual" label="Stock inicial">
-            <Input
-              id="stock-actual"
-              value={stockActual}
-              onChange={(e) => setStockActual(e.target.value)}
-              required
-              className="w-24"
-            />
+          <FormField htmlFor="nro-calce-item" label="Nro de calce (opcional)">
+            <Input id="nro-calce-item" value={nroCalce} onChange={(e) => setNroCalce(e.target.value)} className="w-32" />
           </FormField>
           <ImagenItemUpload value={imagenUrl} onChange={setImagenUrl} />
           <Button type="submit" disabled={isSubmitting}>
@@ -216,20 +187,26 @@ export function ItemCatalogo({ negocioId }: { negocioId: string }) {
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] border-collapse text-left">
+        <table className="w-full min-w-[900px] border-collapse text-left">
           <thead className="bg-surface-container">
             <tr>
               <th className="border-b border-outline-variant px-4 py-3 text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">
                 Producto
               </th>
+              <th className="border-b border-outline-variant px-4 py-3 text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">
+                Nro de calce
+              </th>
               <th className="w-32 border-b border-outline-variant px-4 py-3 text-right text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">
                 Precio
               </th>
               <th className="w-32 border-b border-outline-variant px-4 py-3 text-right text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">
-                Costo
+                Costo prom.
               </th>
               <th className="w-24 border-b border-outline-variant px-4 py-3 text-right text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">
                 Stock
+              </th>
+              <th className="w-36 border-b border-outline-variant px-4 py-3 text-right text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">
+                Valor total
               </th>
               <th className="w-32 border-b border-outline-variant px-4 py-3 text-right text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">
                 Ganancia
@@ -255,7 +232,7 @@ export function ItemCatalogo({ negocioId }: { negocioId: string }) {
                   onCancelar={() => setEditandoId(null)}
                   onGuardado={() => {
                     setEditandoId(null);
-                    cargar();
+                    onCambio();
                   }}
                 />
               ) : (
@@ -273,12 +250,20 @@ export function ItemCatalogo({ negocioId }: { negocioId: string }) {
                       <span className="font-medium text-on-surface">{item.nombre}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right text-body-md text-on-surface">{item.precioVenta}</td>
-                  <td className="px-4 py-3 text-right text-body-md text-on-surface-variant">{item.costoCompra}</td>
+                  <td className="px-4 py-3 text-body-md text-on-surface-variant">{item.nroCalce ?? "—"}</td>
+                  <td className="px-4 py-3 text-right text-body-md text-on-surface">
+                    {formatearMonto(item.precioVenta, codigoMoneda(item.monedaId))}
+                  </td>
+                  <td className="px-4 py-3 text-right text-body-md text-on-surface-variant">
+                    {item.costoCompra ? formatearMonto(item.costoCompra, codigoMoneda(item.monedaId)) : "—"}
+                  </td>
                   <td className="px-4 py-3 text-right text-body-md text-on-surface">{item.stockActual}</td>
+                  <td className="px-4 py-3 text-right text-body-md text-on-surface-variant">
+                    {formatearMonto(valorTotal(item), codigoMoneda(item.monedaId))}
+                  </td>
                   <td className="px-4 py-3 text-right text-body-md font-medium text-success">
                     {item.costoCompra
-                      ? `+${calcularGananciaProducto(item.precioVenta, item.costoCompra).ganancia}`
+                      ? `+${formatearMonto(calcularGananciaProducto(item.precioVenta, item.costoCompra).ganancia, codigoMoneda(item.monedaId))}`
                       : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -311,8 +296,8 @@ export function ItemCatalogo({ negocioId }: { negocioId: string }) {
             )}
             {filtrados.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-body-md text-on-surface-variant">
-                  {items?.length === 0
+                <td colSpan={10} className="px-4 py-8 text-center text-body-md text-on-surface-variant">
+                  {items.length === 0
                     ? "Todavía no tenés productos en el catálogo."
                     : "Ningún producto coincide con la búsqueda."}
                 </td>
@@ -357,7 +342,7 @@ function ItemEditarFila({
 
   return (
     <tr className="bg-surface-container-low">
-      <td colSpan={8} className="p-3">
+      <td colSpan={10} className="p-3">
         <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
           <Input value={nombre} onChange={(e) => setNombre(e.target.value)} />
           <Input value={precioVenta} onChange={(e) => setPrecioVenta(e.target.value)} className="w-28" />

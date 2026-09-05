@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { assertCambioDeTipoPermitido, calcularGananciaProducto, TipoItemBloqueadoError } from "./item";
+import {
+  assertCambioDeTipoPermitido,
+  calcularCostoPromedioPonderado,
+  calcularGananciaProducto,
+  TipoItemBloqueadoError,
+} from "./item";
 
 describe("assertCambioDeTipoPermitido", () => {
   it("permite cambiar el tipo si no tiene movimientos", () => {
@@ -41,5 +46,20 @@ describe("calcularGananciaProducto", () => {
 
   it("no divide por cero cuando el precio es 0", () => {
     expect(calcularGananciaProducto("0", "0").margen).toBe("0");
+  });
+});
+
+describe("calcularCostoPromedioPonderado", () => {
+  it("pondera el costo nuevo por cantidad contra el stock/costo previos", () => {
+    // 10 a 100.000 (stock/costo previos) + 10 a 95.000 (compra nueva) → 97.500
+    expect(calcularCostoPromedioPonderado("10", "100000", "10", "95000")).toBe("97500");
+  });
+
+  it("usa el costo nuevo tal cual cuando no había stock previo", () => {
+    expect(calcularCostoPromedioPonderado("0", null, "10", "95000")).toBe("95000");
+  });
+
+  it("trata costoPrevio null como 0 cuando sí había stock previo", () => {
+    expect(calcularCostoPromedioPonderado("5", null, "5", "100000")).toBe("50000");
   });
 });

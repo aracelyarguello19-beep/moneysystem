@@ -58,6 +58,7 @@ export async function seedTiposGastoDefault(
 
 export * from "./inventario";
 export * from "./ledger";
+export * from "./moneda";
 export * from "./tasa-cambio";
 
 export async function checkDatabaseHealth(): Promise<boolean> {

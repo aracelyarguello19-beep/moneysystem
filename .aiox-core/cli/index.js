@@ -25,6 +25,7 @@ const { createConfigCommand } = require('./commands/config');
 const { createProCommand } = require('./commands/pro');
 const { createSdcCommand } = require('./commands/sdc');
 const { createWaveCommand } = require('./commands/wave');
+const { createValidateCommand } = require('./commands/validate');
 
 // Read package.json for version
 const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
@@ -53,6 +54,7 @@ Commands:
   manifest          Manage manifest files (validate, regenerate)
   qa                Quality Gate Manager (run, status)
   metrics           Quality Gate Metrics (record, show, seed, cleanup)
+  validate          Validate AIOX-Core installation integrity
   config            Manage layered configuration (show, diff, migrate, validate)
   pro               AIOX Pro license management (activate, status, deactivate, features)
   sdc               Lean full-sdc runtime (plan, status, verify, next)
@@ -81,6 +83,9 @@ Examples:
   $ aiox metrics show
   $ aiox metrics record --layer 1 --passed
   $ aiox metrics seed --days 30
+  $ aiox validate
+  $ aiox validate --detailed
+  $ aiox validate --repair --dry-run
   $ aiox migrate --dry-run
   $ aiox migrate --from=2.0 --to=2.1
   $ aiox generate pmdr --title "Feature X Decision"
@@ -137,6 +142,9 @@ Examples:
   program.addCommand(createSdcCommand());
   program.addCommand(createWaveCommand());
 
+  // Add validate command (Story 6.19)
+  program.addCommand(createValidateCommand());
+
   return program;
 }
 
@@ -160,3 +168,10 @@ module.exports = {
   createProgram,
   run,
 };
+
+// Allow direct execution: `node .aiox-core/cli/index.js <command> [...args]`.
+// There is no packaged `aiox` bin in this project (only the vendored
+// `.aiox-core/` subtree), so this is the entry point npm scripts use.
+if (require.main === module) {
+  run();
+}

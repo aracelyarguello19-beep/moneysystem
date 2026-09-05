@@ -1,0 +1,153 @@
+{
+  "schema_version": "1.0.0",
+  "contract_id": "design-md-url-extraction-process",
+  "version": "2026-05-07",
+  "status": "active",
+  "scope": "squads/design-ops/scripts/extract-from-url",
+  "purpose": "Machine-readable extraction and DESIGN.md authoring contract loaded by the URL extraction runner.",
+  "source_rules": [
+    {
+      "id": "extraction-no-fallbacks",
+      "path": ".claude/rules/extraction-no-fallbacks.md",
+      "authority": "non_negotiable"
+    },
+    {
+      "id": "design-md-convention",
+      "path": "squads/design-ops/rules/design-md-convention.md",
+      "authority": "non_negotiable"
+    }
+  ],
+  "no_fallbacks": {
+    "principle": "Extraction outputs record only source evidence, aliases from source evidence, derivations from extracted brand signals, pipeline policy, or structured extraction gaps.",
+    "coverage_rule": "Coverage from fallback values is false coverage and must not count as real extraction coverage.",
+    "missing_value": {
+      "value": null,
+      "gap_marker_format": "extraction_gap(<reason>)",
+      "instruction": "When a required slot has no source evidence, emit null plus a sibling extraction_gap marker or prose gap note."
+    },
+    "allowed_value_sources": [
+      "extracted_css_html_sidecars",
+      "aliases_from_extracted_swatches",
+      "derivations_from_extracted_brand_signals",
+      "pipeline_policy",
+      "structured_extraction_gaps"
+    ],
+    "forbidden_patterns": {
+      "universal_hex_defaults": [
+        "#2f7613",
+        "#6a9bcc"
+      ],
+      "universal_token_defaults": [
+        {
+          "token": "btn-height",
+          "value": "40px"
+        },
+        {
+          "token": "nav-height",
+          "value": "64px"
+        },
+        {
+          "token": "container-max",
+          "value": "1280px"
+        }
+      ],
+      "generic_cta_verbs": [
+        "Get started",
+        "Learn more",
+        "Talk to us"
+      ],
+      "disallowed_inferences": [
+        "Tailwind spacing scale when no source spacing exists",
+        "shadcn baseline shadows, elevation, motion, or radius when no source evidence exists",
+        "hover or focus color synthesized by color-mix without source state evidence",
+        "padding or spacing from common design-system conventions"
+      ]
+    }
+  },
+  "design_md": {
+    "frontmatter": {
+      "required_keys": [
+        "version",
+        "name",
+        "description",
+        "colors",
+        "typography",
+        "spacing",
+        "rounded",
+        "components"
+      ],
+      "minimum_components": [
+        "button-primary",
+        "button-primary-hover",
+        "button-secondary",
+        "button-ghost",
+        "card",
+        "input-text",
+        "badge-default",
+        "nav-header"
+      ],
+      "literal_value_rule": "YAML values must be literal hex, units, or strings. Token-reference interpolation is forbidden."
+    },
+    "canonical_sections": [
+      "## 1. Visual Theme & Atmosphere",
+      "## 2. Color Palette & Roles",
+      "## 3. Typography Rules",
+      "## 4. Components",
+      "## 5. Layout Principles",
+      "## 6. Depth & Elevation",
+      "## 7. Do's and Don'ts",
+      "## 8. Responsive Behavior",
+      "## 9. Agent Prompt Guide"
+    ],
+    "implementation_section": {
+      "required": true,
+      "heading": "## Implementation",
+      "required_fields": [
+        "Stack",
+        "Tailwind config path and version",
+        "shadcn components.json snapshot",
+        "Token to utility mapping table",
+        "Component source root path",
+        "Regenerate command"
+      ],
+      "section_name_rule": "Populate ## Implementation. Do not create parallel headings with similar meaning."
+    },
+    "agent_prompt_guide": {
+      "required_for_url_extracted_design_md": true,
+      "heading": "## 9. Agent Prompt Guide",
+      "required_subsections": [
+        "### Quick Color Reference",
+        "### Example Component Prompts",
+        "### Iteration Guide"
+      ],
+      "minimum_example_prompts": 5,
+      "iteration_tips_range": [
+        6,
+        8
+      ],
+      "brand_specific": true
+    },
+    "fidelity_notes": {
+      "heading": "## Fidelity Notes",
+      "required_when_extraction_has_limits": true,
+      "fields": [
+        "shadows_detected",
+        "fonts_proprietary",
+        "icons_not_captured",
+        "photography_not_captured",
+        "alpha_lost"
+      ],
+      "intent": "Communicate extraction limits and intentional source gaps without inventing replacement values."
+    }
+  },
+  "enforcement": {
+    "prompt": "blocking_instruction",
+    "inputs_artifact": "inputs/process-contract.json",
+    "authoring": "The prompt must load this contract before asking the LLM to author DESIGN.md.",
+    "validation": [
+      "lint-report.json",
+      "extraction-class.json",
+      "validate-no-fallbacks.cjs"
+    ]
+  }
+}

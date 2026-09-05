@@ -1,6 +1,7 @@
 import type { CuentaPorCobrar, Item } from "@repo/domain";
 import { Card } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
+import { formatearMonto } from "@/lib/moneda";
 
 const UMBRAL_STOCK_BAJO = 5;
 const MAX_FILAS = 4;
@@ -78,7 +79,7 @@ export function AlertasCriticas({
                     </span>
                   </div>
                   <span className="text-label-lg font-semibold text-error">
-                    {(Number(c.montoOriginal) - Number(c.montoPagado)).toString()}
+                    {formatearMonto((Number(c.montoOriginal) - Number(c.montoPagado)).toString())}
                   </span>
                 </li>
               ))}

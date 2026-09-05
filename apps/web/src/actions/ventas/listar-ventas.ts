@@ -35,14 +35,18 @@ export const listarVentas = withErrorHandling(async (negocioId: string): Promise
       id: vi.id,
       ventaId: vi.ventaId,
       itemId: vi.itemId,
+      nombreLibre: vi.nombreLibre,
       cantidad: vi.cantidad?.toString() ?? null,
       precioUnitario: vi.precioUnitario.toString(),
       costoServicio: vi.costoServicio?.toString() ?? null,
       costoUnitario: vi.costoUnitario?.toString() ?? null,
       cantidadDevuelta: vi.cantidadDevuelta.toString(),
       esLibre: vi.esLibre,
-      itemNombre: vi.item.nombre,
-      itemTipo: vi.item.tipo as Item["tipo"],
+      // Sin `item` (producto fuera de catálogo, tipeado a mano en una venta
+      // libre): `nombreLibre` es el único nombre que existe, y se asume
+      // PRODUCTO — este flujo nunca aplica a Servicios.
+      itemNombre: vi.item?.nombre ?? vi.nombreLibre ?? "Producto fuera de catálogo",
+      itemTipo: (vi.item?.tipo as Item["tipo"] | undefined) ?? "PRODUCTO",
     })),
   }));
 });

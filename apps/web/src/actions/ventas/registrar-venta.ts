@@ -1,17 +1,33 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import type { CuentaFinanciera, Item, Venta } from "@repo/domain";
 import {
   assertCantidadValidaParaVentaItem,
   assertCostoServicioValido,
+  assertCuentaFinancieraEsTarjeta,
   assertCuentaFinancieraNoEsTarjeta,
+  calcularCostoPromedioPonderado,
   calcularTotalVenta,
 } from "@repo/domain";
 import { registrarVentaSchema } from "@repo/domain/schemas";
-import { aplicarMovimientoCuenta, resolverTasaCambioVigente, withRlsContext } from "@repo/database";
+import { aplicarMovimientoCuenta, aplicarMovimientoTarjeta, withRlsContext } from "@repo/database";
 import { getCurrentAccount } from "@/lib/auth";
 import { withErrorHandling } from "@/lib/server-action-wrapper";
+
+interface ItemResuelto {
+  itemId: string | null;
+  nombreLibre: string | null;
+  cantidad: string | null;
+  precioUnitario: string;
+  costoServicio: string | null;
+  costoUnitario: string | null;
+  esLibre: boolean;
+  tipo: Item["tipo"];
+  formaPagoProveedor?: "EFECTIVO" | "BANCO" | "TARJETA" | "CREDITO_PROVEEDOR";
+  cuentaFinancieraProveedorId?: string | null;
+}
 
 // AC2/AC3/AC4 completos: reducción de stock, ajuste de saldo (INGRESO) si
 // el cobro no es a crédito, y cuenta por cobrar si es CREDITO_CLIENTE —
@@ -27,15 +43,38 @@ export const registrarVenta = withErrorHandling(
     if (!cuenta) throw new Error("No hay sesión activa");
 
     const venta = await withRlsContext(cuenta.id, negocioId, async (tx) => {
-      const itemsResueltos: { itemId: string; cantidad: string | null; precioUnitario: string; costoServicio: string | null; costoUnitario: string | null; esLibre: boolean; tipo: Item["tipo"] }[] = [];
+      const itemsResueltos: ItemResuelto[] = [];
 
       for (const ventaItem of parsed.items) {
-        const item = await tx.item.findUniqueOrThrow({ where: { id: ventaItem.itemId } });
+        // Venta libre de un producto que NO está en el catálogo: no hay
+        // Item que resolver — `nombreLibre` es toda la identificación que
+        // existe, y nunca se crea un Item nuevo a partir de esto (pedido
+        // explícito: solo se registra el catálogo cuando el dueño elige un
+        // producto real de las sugerencias).
+        if (ventaItem.esLibre && !ventaItem.itemId) {
+          assertCantidadValidaParaVentaItem({ tipo: "PRODUCTO" }, ventaItem.cantidad);
+          itemsResueltos.push({
+            itemId: null,
+            nombreLibre: ventaItem.nombreLibre ?? null,
+            cantidad: ventaItem.cantidad,
+            precioUnitario: ventaItem.precioUnitario,
+            costoServicio: null,
+            costoUnitario: ventaItem.costoUnitario ?? "0",
+            esLibre: true,
+            tipo: "PRODUCTO",
+            formaPagoProveedor: ventaItem.formaPagoProveedor,
+            cuentaFinancieraProveedorId: ventaItem.cuentaFinancieraProveedorId,
+          });
+          continue;
+        }
+
+        const item = await tx.item.findUniqueOrThrow({ where: { id: ventaItem.itemId! } });
         const tipo = item.tipo as Item["tipo"];
         assertCantidadValidaParaVentaItem({ tipo }, ventaItem.cantidad);
         assertCostoServicioValido({ tipo }, ventaItem.costoServicio);
         itemsResueltos.push({
-          itemId: ventaItem.itemId,
+          itemId: ventaItem.itemId!,
+          nombreLibre: null,
           cantidad: ventaItem.cantidad,
           precioUnitario: ventaItem.precioUnitario,
           costoServicio: ventaItem.costoServicio ?? null,
@@ -51,17 +90,40 @@ export const registrarVenta = withErrorHandling(
               : null,
           esLibre: ventaItem.esLibre ?? false,
           tipo,
+          formaPagoProveedor: ventaItem.formaPagoProveedor,
+          cuentaFinancieraProveedorId: ventaItem.cuentaFinancieraProveedorId,
         });
       }
 
-      // Story 5.3, Coding Standard "Tasa de Cambio Inmutable": el cliente
-      // nunca decide `tasaCambioId` — se resuelve server-side, vigente a
-      // "ahora" (la venta no tiene un campo `fecha` propio en el schema de
-      // entrada, se crea con `now()`), y queda grabada de forma inmutable.
+      // El carrito/total de la venta siempre quedan en la moneda base
+      // (Guaraníes) — `monedaId` acá es solo la moneda en la que el
+      // cliente pagó (Story rediseño Caja multimoneda). Cuando no es la
+      // base: `cotizacion` graba un snapshot NUEVO de TasaCambio (nunca se
+      // actualiza uno existente — mismo criterio inmutable que
+      // `registrarTasaCambio`, Story 5.3) que además pasa a ser la
+      // "vigente" que se ve en la tarjeta de esa moneda en Caja; y
+      // `montoRecibido` — no el total en Gs — es lo que se acredita en la
+      // cuenta financiera de esa moneda.
       const moneda = await tx.moneda.findUniqueOrThrow({ where: { id: parsed.monedaId } });
-      const tasaCambio = moneda.esBase
-        ? null
-        : await resolverTasaCambioVigente(tx, parsed.monedaId, new Date());
+      const monedaBase = moneda.esBase
+        ? moneda
+        : await tx.moneda.findFirstOrThrow({ where: { negocioId, ambito: "LABORAL", esBase: true } });
+      let tasaCambioId: string | null = null;
+      let montoIngreso = calcularTotalVenta(itemsResueltos);
+
+      if (!moneda.esBase) {
+        if (!parsed.cotizacion || Number(parsed.cotizacion) <= 0) {
+          throw new Error("La cotización es obligatoria para ventas en una moneda distinta a la oficial.");
+        }
+        if (!parsed.montoRecibido || Number(parsed.montoRecibido) <= 0) {
+          throw new Error("El monto recibido es obligatorio para ventas en una moneda distinta a la oficial.");
+        }
+        const tasaCambio = await tx.tasaCambio.create({
+          data: { monedaId: parsed.monedaId, tasa: parsed.cotizacion, registradaPor: cuenta.id },
+        });
+        tasaCambioId = tasaCambio.id;
+        montoIngreso = parsed.montoRecibido;
+      }
 
       const nueva = await tx.venta.create({
         data: {
@@ -72,10 +134,15 @@ export const registrarVenta = withErrorHandling(
           impuesto: parsed.impuesto,
           cuentaFinancieraId: parsed.cuentaFinancieraId,
           monedaId: parsed.monedaId,
-          tasaCambioId: tasaCambio?.id ?? null,
+          tasaCambioId,
           ventaItems: {
+            // `item` es una relación opcional (venta libre fuera de
+            // catálogo) — Prisma exige pasarla como `connect` en vez del
+            // FK escalar plano cuando puede ser null dentro de un `create`
+            // anidado.
             create: itemsResueltos.map((vi) => ({
-              itemId: vi.itemId,
+              item: vi.itemId ? { connect: { id: vi.itemId } } : undefined,
+              nombreLibre: vi.nombreLibre,
               cantidad: vi.cantidad,
               precioUnitario: vi.precioUnitario,
               costoServicio: vi.costoServicio,
@@ -91,33 +158,87 @@ export const registrarVenta = withErrorHandling(
         // sale del inventario propio (ver Story rediseño Ventas/Inventario).
         if (!vi.esLibre && vi.tipo === "PRODUCTO" && vi.cantidad) {
           await tx.item.update({
-            where: { id: vi.itemId },
-            data: {
-              stockActual: { decrement: vi.cantidad },
-              tieneMovimientos: true,
-            },
+            where: { id: vi.itemId! },
+            data: { stockActual: { decrement: vi.cantidad }, tieneMovimientos: true },
           });
         }
 
-        // El costo de una venta libre de Producto sí se registra como
-        // Compra (afectaInventario: false) para que aparezca en el flujo de
-        // caja/balance, sin sumar unidades al inventario.
         if (vi.esLibre && vi.tipo === "PRODUCTO") {
-          await tx.compra.create({
-            data: {
-              negocioId,
-              cuentaId: cuenta.id,
-              itemId: vi.itemId,
-              costoUnitario: vi.costoUnitario ?? "0",
-              cantidad: vi.cantidad ?? "1",
-              fecha: new Date(),
-              formaPago: "CREDITO_PROVEEDOR",
-              cuentaFinancieraId: null,
-              monedaId: parsed.monedaId,
-              tasaCambioId: tasaCambio?.id ?? null,
-              afectaInventario: false,
-            },
-          });
+          const montoCompra = new Prisma.Decimal(vi.costoUnitario ?? "0").times(vi.cantidad ?? "1").toString();
+          let compraId: string | null = null;
+
+          // Solo se registra como Compra (afectaInventario: false, ajusta
+          // el costo promedio) cuando el producto elegido SÍ está en el
+          // catálogo — un producto tipeado a mano (`nombreLibre`) no tiene
+          // Item detrás, así que no hay nada que actualizar ahí.
+          if (vi.itemId) {
+            const itemCatalogo = await tx.item.findUniqueOrThrow({ where: { id: vi.itemId } });
+            const nuevoCostoCompra = calcularCostoPromedioPonderado(
+              itemCatalogo.stockActual.toString(),
+              itemCatalogo.costoCompra?.toString() ?? null,
+              vi.cantidad ?? "1",
+              vi.costoUnitario ?? "0"
+            );
+            await tx.item.update({
+              where: { id: vi.itemId },
+              data: { costoCompra: nuevoCostoCompra, tieneMovimientos: true },
+            });
+
+            const compra = await tx.compra.create({
+              data: {
+                negocioId,
+                cuentaId: cuenta.id,
+                itemId: vi.itemId,
+                costoUnitario: vi.costoUnitario ?? "0",
+                cantidad: vi.cantidad ?? "1",
+                fecha: new Date(),
+                formaPago: vi.formaPagoProveedor ?? "CREDITO_PROVEEDOR",
+                cuentaFinancieraId: vi.cuentaFinancieraProveedorId ?? null,
+                monedaId: monedaBase.id,
+                tasaCambioId: null,
+                afectaInventario: false,
+              },
+            });
+            compraId = compra.id;
+          }
+
+          // Plata real que salió para pagarle al proveedor — sin esto, el
+          // costo de la venta libre queda "flotando" sin ledger, y la caja
+          // termina con plata de más (pedido explícito: registrar la
+          // salida para que no sobre dinero cuando después entre el cobro
+          // de la venta al cliente).
+          if (
+            vi.formaPagoProveedor &&
+            vi.formaPagoProveedor !== "CREDITO_PROVEEDOR" &&
+            vi.cuentaFinancieraProveedorId
+          ) {
+            const cuentaProveedor = await tx.cuentaFinanciera.findUniqueOrThrow({
+              where: { id: vi.cuentaFinancieraProveedorId },
+            });
+            if (cuentaProveedor.monedaId !== monedaBase.id) {
+              throw new Error("La cuenta de pago al proveedor debe ser de la moneda oficial del sistema.");
+            }
+
+            if (vi.formaPagoProveedor === "TARJETA") {
+              assertCuentaFinancieraEsTarjeta({ tipo: cuentaProveedor.tipo as CuentaFinanciera["tipo"] });
+              await aplicarMovimientoTarjeta(tx, {
+                cuentaFinancieraId: vi.cuentaFinancieraProveedorId,
+                tipo: "CONSUMO",
+                monto: montoCompra,
+                referenciaTipo: "COMPRA",
+                referenciaId: compraId ?? nueva.id,
+              });
+            } else {
+              assertCuentaFinancieraNoEsTarjeta({ tipo: cuentaProveedor.tipo as CuentaFinanciera["tipo"] });
+              await aplicarMovimientoCuenta(tx, {
+                cuentaFinancieraId: vi.cuentaFinancieraProveedorId,
+                tipo: "EGRESO",
+                monto: montoCompra,
+                referenciaTipo: "COMPRA",
+                referenciaId: compraId ?? nueva.id,
+              });
+            }
+          }
         }
       }
 
@@ -146,11 +267,14 @@ export const registrarVenta = withErrorHandling(
           where: { id: parsed.cuentaFinancieraId },
         });
         assertCuentaFinancieraNoEsTarjeta({ tipo: cuentaFinanciera.tipo as CuentaFinanciera["tipo"] });
+        if (cuentaFinanciera.monedaId !== parsed.monedaId) {
+          throw new Error("La cuenta seleccionada no coincide con la moneda en la que pagó el cliente.");
+        }
 
         await aplicarMovimientoCuenta(tx, {
           cuentaFinancieraId: parsed.cuentaFinancieraId,
           tipo: "INGRESO",
-          monto: calcularTotalVenta(itemsResueltos),
+          monto: montoIngreso,
           referenciaTipo: "VENTA",
           referenciaId: nueva.id,
         });
@@ -164,6 +288,7 @@ export const registrarVenta = withErrorHandling(
     revalidatePath("/laboral/servicios");
     revalidatePath("/laboral/cuentas-por-cobrar");
     revalidatePath("/laboral/indicadores");
+    revalidatePath("/laboral/caja");
 
     return {
       id: venta.id,

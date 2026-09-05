@@ -24,7 +24,7 @@ export const cancelarVenta = withErrorHandling(
     const venta = await withRlsContext(cuenta.id, negocioId, async (tx) => {
       const ventaActual = await tx.venta.findUniqueOrThrow({
         where: { id: ventaId },
-        include: { ventaItems: { include: { item: true } } },
+        include: { ventaItems: { include: { item: true } }, moneda: true, tasaCambio: true },
       });
 
       // Sin `itemsDevueltos`: cancelación total — devuelve todo el pendiente
@@ -60,12 +60,15 @@ export const cancelarVenta = withErrorHandling(
 
         valorDevuelto = valorDevuelto.plus(ventaItem.precioUnitario.times(dev.cantidad));
 
-        const tipo = ventaItem.item.tipo as Item["tipo"];
+        // Venta libre de un producto fuera de catálogo: `item` es null
+        // (nunca se crea un Item para eso) — se asume PRODUCTO, único tipo
+        // que puede venderse "libre".
+        const tipo = (ventaItem.item?.tipo as Item["tipo"] | undefined) ?? "PRODUCTO";
         // Una línea "venta libre" nunca descontó stock al vender (no sale de
         // inventario propio) — devolverla tampoco debe sumarlo.
         if (tipo === "PRODUCTO" && !ventaItem.esLibre) {
           await tx.item.update({
-            where: { id: ventaItem.itemId },
+            where: { id: ventaItem.itemId! },
             data: { stockActual: { increment: dev.cantidad } },
           });
         }
@@ -95,10 +98,21 @@ export const cancelarVenta = withErrorHandling(
         // AC4 (Story 3.3) / Story 4.2: si la venta ya estaba cobrada
         // (no era a crédito), la devolución es un reembolso — EGRESO sobre
         // la misma cuenta financiera que recibió el cobro original.
+        // `valorDevuelto` está en Guaraníes (los ítems siempre se
+        // registran ahí, ver `registrarVenta`) — si la venta se cobró en
+        // una moneda distinta a la oficial, hay que reconvertirlo a esa
+        // moneda con la MISMA cotización que se usó al vender (el
+        // snapshot inmutable en `tasaCambio`, nunca la vigente de hoy):
+        // eso es lo que de verdad se acreditó, y es lo que hay que
+        // reembolsar.
+        const montoEgreso = ventaActual.moneda.esBase
+          ? valorDevuelto
+          : valorDevuelto.dividedBy(ventaActual.tasaCambio!.tasa);
+
         await aplicarMovimientoCuenta(tx, {
           cuentaFinancieraId: ventaActual.cuentaFinancieraId,
           tipo: "EGRESO",
-          monto: valorDevuelto.toString(),
+          monto: montoEgreso.toString(),
           referenciaTipo: "VENTA",
           referenciaId: ventaId,
         });

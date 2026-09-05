@@ -5,27 +5,32 @@ import type { Compra, Item, Moneda } from "@repo/domain";
 import { registrarCompra } from "@/actions/inventario/registrar-compra";
 import { crearItem } from "@/actions/inventario/crear-item";
 import { listarItems } from "@/actions/inventario/listar-items";
+import { listarCompras } from "@/actions/inventario/listar-compras";
 import { listarMonedas } from "@/actions/catalogos/listar-monedas";
 import { CuentaFinancieraSelect } from "@/components/cuenta-financiera-select";
+import { ProductoBuscador } from "@/components/producto-buscador";
 import { emitirInventarioCambiado, useInventarioCambiado } from "@/lib/inventario-events";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
+import { formatearMonto } from "@/lib/moneda";
 
 const FORMAS_PAGO: Compra["formaPago"][] = ["EFECTIVO", "BANCO", "TARJETA", "CREDITO_PROVEEDOR"];
+
+type CompraListada = Compra & { itemNombre: string; itemNroCalce: string | null };
 
 // AC2: solo ítems tipo Producto aparecen como opción — un Servicio nunca se
 // ofrece en este formulario (defensa en profundidad; la Server Action lo
 // rechaza igual si llegara). Permite crear el producto sin salir de esta
 // pantalla (mismo patrón que Ventas): se crea con stock 0 y es la propia
 // compra la que lo carga al inventario, para no contar el stock dos veces.
-// [Source: architecture/frontend-architecture.md#Component Organization]
+// El historial es el registro tal cual se compró — el promedio ponderado
+// que combina compras del mismo ítem vive en Inventario, no acá.
 export function CompraForm({ negocioId }: { negocioId: string }) {
   const [productos, setProductos] = useState<Item[]>([]);
   const [monedas, setMonedas] = useState<Moneda[]>([]);
-  const [compras, setCompras] = useState<Compra[]>([]);
+  const [historial, setHistorial] = useState<CompraListada[]>([]);
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -40,14 +45,15 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
 
   const [creandoProducto, setCreandoProducto] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState("");
-  const [nuevoPrecio, setNuevoPrecio] = useState("");
+  const [nuevoNroCalce, setNuevoNroCalce] = useState("");
   const [nuevoMensaje, setNuevoMensaje] = useState<string | null>(null);
   const [creandoEnProgreso, setCreandoEnProgreso] = useState(false);
 
   const cargar = useCallback(async () => {
-    const [itemsResult, monedasResult] = await Promise.all([
+    const [itemsResult, monedasResult, historialResult] = await Promise.all([
       listarItems(negocioId),
       listarMonedas(negocioId),
+      listarCompras(negocioId),
     ]);
     if (itemsResult.ok) {
       const soloProductos = itemsResult.data.filter((i) => i.tipo === "PRODUCTO");
@@ -58,6 +64,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
       setMonedas(monedasResult.data.filter((m) => m.activa));
       setMonedaId((actual) => actual || monedasResult.data.find((m) => m.esBase)?.id || "");
     }
+    if (historialResult.ok) setHistorial(historialResult.data);
   }, [negocioId]);
 
   useEffect(() => {
@@ -72,12 +79,13 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
     const result = await crearItem(negocioId, {
       tipo: "PRODUCTO",
       nombre: nuevoNombre,
-      precioVenta: nuevoPrecio || "0",
+      precioVenta: "0",
       monedaId,
       // Stock arranca en 0: es "Registrar compra" quien lo carga al
       // confirmar, para no contar esta primera compra dos veces.
       costoCompra: costoUnitario || "0",
       stockActual: "0",
+      nroCalce: nuevoNroCalce.trim() || undefined,
     });
     setCreandoEnProgreso(false);
     if (!result.ok) {
@@ -89,7 +97,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
     setItemId(result.data.id);
     setCreandoProducto(false);
     setNuevoNombre("");
-    setNuevoPrecio("");
+    setNuevoNroCalce("");
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -116,10 +124,11 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
     setCostoUnitario("");
     setCantidad("");
     setProveedor("");
-    setCompras((prev) => [result.data, ...prev]);
     await cargar();
     emitirInventarioCambiado();
   }
+
+  const codigoMoneda = (monedaId: string) => monedas.find((m) => m.id === monedaId)?.codigo;
 
   return (
     <div className="flex flex-col gap-4">
@@ -131,17 +140,6 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
       )}
 
       <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
-        {productos.length > 0 && (
-          <FormField htmlFor="item-compra" label="Producto">
-            <Select id="item-compra" value={itemId} onChange={(e) => setItemId(e.target.value)}>
-              {productos.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-        )}
         <Button
           type="button"
           variant="link"
@@ -152,6 +150,11 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
         >
           + Nuevo producto
         </Button>
+        {productos.length > 0 && (
+          <FormField htmlFor="item-compra" label="Producto">
+            <ProductoBuscador id="item-compra" productos={productos} value={itemId} onChange={setItemId} />
+          </FormField>
+        )}
         <FormField htmlFor="costo-unitario" label="Costo unitario">
           <Input
             id="costo-unitario"
@@ -217,7 +220,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
           <CuentaFinancieraSelect
             id="cuenta-financiera"
             negocioId={negocioId}
-            esTarjeta={formaPago === "TARJETA"}
+            tipo={formaPago === "TARJETA" ? "TARJETA" : formaPago === "BANCO" ? "BANCO" : "CAJA"}
             value={cuentaFinancieraId}
             onChange={setCuentaFinancieraId}
             label="Cuenta financiera"
@@ -237,11 +240,11 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
               onChange={(e) => setNuevoNombre(e.target.value)}
             />
           </FormField>
-          <FormField htmlFor="nuevo-precio-compra" label="Precio de venta">
+          <FormField htmlFor="nuevo-nro-calce-compra" label="Nro de calce (opcional)">
             <Input
-              id="nuevo-precio-compra"
-              value={nuevoPrecio}
-              onChange={(e) => setNuevoPrecio(e.target.value)}
+              id="nuevo-nro-calce-compra"
+              value={nuevoNroCalce}
+              onChange={(e) => setNuevoNroCalce(e.target.value)}
               className="w-24"
             />
           </FormField>
@@ -273,13 +276,38 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
         </p>
       )}
 
-      {compras.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {compras.map((c) => (
-            <Card key={c.id} className="text-sm">
-              {c.cantidad} × {c.costoUnitario} — {c.formaPago}
-            </Card>
-          ))}
+      {historial.length > 0 && (
+        <div className="overflow-x-auto rounded border border-default">
+          <table className="w-full min-w-[720px] border-collapse text-left">
+            <thead className="bg-surface-container">
+              <tr>
+                <th className="px-4 py-3 text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">Producto</th>
+                <th className="px-4 py-3 text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">Nro de calce</th>
+                <th className="px-4 py-3 text-right text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">Cantidad</th>
+                <th className="px-4 py-3 text-right text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">Costo unitario</th>
+                <th className="px-4 py-3 text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">Proveedor</th>
+                <th className="px-4 py-3 text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">Forma de pago</th>
+                <th className="px-4 py-3 text-label-md font-semibold uppercase tracking-wider text-on-surface-variant">Fecha</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-outline-variant">
+              {historial.map((c) => (
+                <tr key={c.id}>
+                  <td className="px-4 py-3 text-body-md text-on-surface">{c.itemNombre}</td>
+                  <td className="px-4 py-3 text-body-md text-on-surface-variant">{c.itemNroCalce ?? "—"}</td>
+                  <td className="px-4 py-3 text-right text-body-md text-on-surface">{c.cantidad}</td>
+                  <td className="px-4 py-3 text-right text-body-md text-on-surface-variant">
+                    {formatearMonto(c.costoUnitario, codigoMoneda(c.monedaId))}
+                  </td>
+                  <td className="px-4 py-3 text-body-md text-on-surface-variant">{c.proveedor ?? "—"}</td>
+                  <td className="px-4 py-3 text-body-md text-on-surface-variant">{c.formaPago}</td>
+                  <td className="px-4 py-3 text-body-md text-on-surface-variant">
+                    {c.fecha.toString().slice(0, 10)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
