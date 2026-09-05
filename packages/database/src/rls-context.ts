@@ -96,6 +96,21 @@ export async function withRlsContext<T>(
         `select set_config('app.active_negocio_id', $1, true)`,
         negocioId ?? ""
       );
+      // Guarda de pertenencia (Hallazgo 3, auditoría RLS): `negocioId` llega
+      // desde el cliente (selector de negocio activo) sin validar. La policy
+      // de `negocios` ya exige `cuenta_id = auth.uid()`, así que este lookup
+      // usa RLS mismo para confirmar que el negocio es de esta cuenta antes
+      // de dejar correr `fn` — un `negocioId` ajeno no filtra datos (RLS ya lo
+      // impide en cada tabla), pero sin esta guarda una escritura podía crear
+      // filas con un `negocio_id` que no pertenece a la cuenta dueña.
+      if (negocioId !== null) {
+        const negocio = await tx.negocio.findUnique({ where: { id: negocioId } });
+        if (!negocio) {
+          throw new Error(
+            `withRlsContext: negocioId no pertenece a la cuenta autenticada: ${negocioId}`
+          );
+        }
+      }
       return fn(tx);
     },
     // Default de Prisma (5s) alcanza para una operación de un solo ítem, pero
