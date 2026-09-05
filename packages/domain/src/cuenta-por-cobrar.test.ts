@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertCuentaPorCobrarSinPagos,
+  assertMontoOriginalValido,
   assertPagoValido,
   calcularEstadoCxC,
   calcularTotalAdeudado,
+  CuentaPorCobrarConPagosError,
+  MontoOriginalMenorAPagadoError,
   PagoExcedeSaldoError,
 } from "./cuenta-por-cobrar";
 
@@ -50,5 +54,33 @@ describe("assertPagoValido", () => {
     expect(() =>
       assertPagoValido({ montoOriginal: "100.00", montoPagado: "40.00" }, "70.00")
     ).toThrow(PagoExcedeSaldoError);
+  });
+});
+
+describe("assertMontoOriginalValido", () => {
+  it("no lanza cuando el nuevo monto sigue cubriendo lo ya pagado", () => {
+    expect(() => assertMontoOriginalValido({ montoPagado: "40.00" }, "100.00")).not.toThrow();
+  });
+
+  it("no lanza cuando el nuevo monto es igual a lo ya pagado", () => {
+    expect(() => assertMontoOriginalValido({ montoPagado: "40.00" }, "40.00")).not.toThrow();
+  });
+
+  it("lanza cuando el nuevo monto queda por debajo de lo ya pagado", () => {
+    expect(() => assertMontoOriginalValido({ montoPagado: "40.00" }, "30.00")).toThrow(
+      MontoOriginalMenorAPagadoError
+    );
+  });
+});
+
+describe("assertCuentaPorCobrarSinPagos", () => {
+  it("no lanza cuando no se registró ningún pago", () => {
+    expect(() => assertCuentaPorCobrarSinPagos({ montoPagado: "0" })).not.toThrow();
+  });
+
+  it("lanza cuando ya tiene algún pago registrado", () => {
+    expect(() => assertCuentaPorCobrarSinPagos({ montoPagado: "40.00" })).toThrow(
+      CuentaPorCobrarConPagosError
+    );
   });
 });

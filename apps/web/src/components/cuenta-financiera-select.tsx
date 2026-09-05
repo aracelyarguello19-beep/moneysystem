@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { CuentaFinanciera } from "@repo/domain";
+import type { CuentaFinanciera, Moneda } from "@repo/domain";
 import { listarCuentasFinancieras } from "@/actions/cuentas-financieras/listar-cuentas-financieras";
+import { listarMonedas } from "@/actions/catalogos/listar-monedas";
 import { FormField } from "@/components/ui/form-field";
 import { Select } from "@/components/ui/select";
 
@@ -37,16 +38,20 @@ export function CuentaFinancieraSelect({
   id: string;
 }) {
   const [cuentas, setCuentas] = useState<CuentaFinanciera[]>([]);
+  const [monedas, setMonedas] = useState<Moneda[]>([]);
   const tipos = Array.isArray(tipo) ? tipo : [tipo];
   const tiposKey = tipos.join(",");
 
   useEffect(() => {
-    listarCuentasFinancieras(negocioId).then((result) => {
-      if (!result.ok) return;
-      const filtradas = result.data.filter((c) => tiposKey.split(",").includes(c.tipo));
-      setCuentas(filtradas);
-      if (!value && filtradas[0]) onChange(filtradas[0].id);
-    });
+    Promise.all([listarCuentasFinancieras(negocioId), listarMonedas(negocioId)]).then(
+      ([cuentasResult, monedasResult]) => {
+        if (monedasResult.ok) setMonedas(monedasResult.data);
+        if (!cuentasResult.ok) return;
+        const filtradas = cuentasResult.data.filter((c) => tiposKey.split(",").includes(c.tipo));
+        setCuentas(filtradas);
+        if (!value && filtradas[0]) onChange(filtradas[0].id);
+      }
+    );
     // Solo se recarga cuando cambia el negocio o el/los tipo(s) pedidos.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [negocioId, tiposKey]);
@@ -60,14 +65,25 @@ export function CuentaFinancieraSelect({
     );
   }
 
+  // El nombre de una cuenta CAJA por defecto es siempre "Efectivo" (ver
+  // crear-cuenta-financiera.ts) — la moneda es lo único que distingue "el
+  // efectivo en dólares" de "el efectivo en guaraníes" cuando hay más de una.
+  // Para BANCO/TARJETA/OTRO el nombre ya suele ser distintivo (banco, alias),
+  // pero mostrar la moneda igual no estorba y evita ambigüedad si dos cuentas
+  // comparten nombre en monedas distintas.
+  const codigoMoneda = (monedaId: string) => monedas.find((m) => m.id === monedaId)?.codigo;
+
   return (
     <FormField htmlFor={id} label={label}>
       <Select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-        {cuentas.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.nombre}
-          </option>
-        ))}
+        {cuentas.map((c) => {
+          const codigo = codigoMoneda(c.monedaId);
+          return (
+            <option key={c.id} value={c.id}>
+              {codigo ? `${c.nombre} (${codigo})` : c.nombre}
+            </option>
+          );
+        })}
       </Select>
     </FormField>
   );

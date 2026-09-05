@@ -5,13 +5,18 @@ import type { CuentaPorCobrar } from "@repo/domain";
 import { calcularTotalAdeudado } from "@repo/domain";
 import { listarCuentasPorCobrar } from "@/actions/cuentas-por-cobrar/listar-cuentas-por-cobrar";
 import { registrarPagoCxC } from "@/actions/cuentas-por-cobrar/registrar-pago-cxc";
+import { editarCuentaPorCobrar } from "@/actions/cuentas-por-cobrar/editar-cuenta-por-cobrar";
+import { eliminarCuentaPorCobrar } from "@/actions/cuentas-por-cobrar/eliminar-cuenta-por-cobrar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CuentaFinancieraSelect } from "@/components/cuenta-financiera-select";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { StatCard } from "@/components/ui/stat-card";
 import { formatearMonto } from "@/lib/moneda";
 
 type CxCConFecha = CuentaPorCobrar & { fechaOrigen: Date };
+type EdicionDraft = { cliente: string; montoOriginal: string };
 
 const ESTADO_BADGE: Record<CxCConFecha["estado"], { label: string; variant: "success" | "warning" }> = {
   PAGADO: { label: "Pagado", variant: "success" },
@@ -21,12 +26,17 @@ const ESTADO_BADGE: Record<CxCConFecha["estado"], { label: string; variant: "suc
 
 // AC1/AC3/AC4: listado por cliente con monto adeudado, fecha de origen y
 // estado, más el total agregado. AC2: registrar un pago (total o parcial).
+// Editar (cliente/monto) y eliminar (solo si no tiene pagos, ver
+// assertCuentaPorCobrarSinPagos) se agregaron después, a pedido — no forman
+// parte de un AC numerado de una story existente.
 export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
   const [cuentas, setCuentas] = useState<CxCConFecha[] | null>(null);
   const [pagos, setPagos] = useState<Record<string, { monto: string; cuentaFinancieraId: string }>>(
     {}
   );
   const [mensajes, setMensajes] = useState<Record<string, string>>({});
+  const [edicion, setEdicion] = useState<Record<string, EdicionDraft | undefined>>({});
+  const [guardandoEdicion, setGuardandoEdicion] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const result = await listarCuentasPorCobrar(negocioId);
@@ -53,6 +63,43 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
     }
   }
 
+  function onEmpezarEdicion(c: CxCConFecha) {
+    setEdicion((prev) => ({ ...prev, [c.id]: { cliente: c.cliente, montoOriginal: c.montoOriginal } }));
+    setMensajes((prev) => ({ ...prev, [c.id]: "" }));
+  }
+
+  function onCancelarEdicion(cxcId: string) {
+    setEdicion((prev) => ({ ...prev, [cxcId]: undefined }));
+  }
+
+  async function onGuardarEdicion(cxcId: string) {
+    const draft = edicion[cxcId];
+    if (!draft) return;
+
+    setGuardandoEdicion(cxcId);
+    const result = await editarCuentaPorCobrar(cxcId, negocioId, draft);
+    setGuardandoEdicion(null);
+
+    if (!result.ok) {
+      setMensajes((prev) => ({ ...prev, [cxcId]: result.error.message }));
+      return;
+    }
+    setEdicion((prev) => ({ ...prev, [cxcId]: undefined }));
+    await cargar();
+  }
+
+  async function onEliminar(c: CxCConFecha) {
+    if (!window.confirm(`¿Eliminar la cuenta por cobrar de "${c.cliente}"? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    const result = await eliminarCuentaPorCobrar(c.id, negocioId);
+    if (!result.ok) {
+      setMensajes((prev) => ({ ...prev, [c.id]: result.error.message }));
+      return;
+    }
+    await cargar();
+  }
+
   if (!cuentas) return null;
 
   if (cuentas.length === 0) {
@@ -69,54 +116,120 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
         className="w-full sm:w-64"
       />
       <ul className="flex flex-col gap-3">
-        {cuentas.map((c) => (
-          <li key={c.id} className="rounded border border-default px-4 py-2">
-            <p className="flex items-center gap-2 text-sm">
-              <span className="font-medium">{c.cliente}</span>
-              <Badge variant={ESTADO_BADGE[c.estado].variant}>{ESTADO_BADGE[c.estado].label}</Badge>
-              <span className="text-muted">{c.fechaOrigen.toString().slice(0, 10)}</span>
-            </p>
-            <p className="text-xs text-muted">
-              Debe {formatearMonto(c.montoOriginal)}, pagó {formatearMonto(c.montoPagado)}
-            </p>
-            {c.estado !== "PAGADO" && (
-              <div className="mt-2 flex items-end gap-2">
-                <Input
-                  aria-label={`Monto a pagar de ${c.cliente}`}
-                  value={pagos[c.id]?.monto ?? ""}
-                  onChange={(e) =>
-                    setPagos((prev) => ({
-                      ...prev,
-                      [c.id]: { ...prev[c.id], monto: e.target.value, cuentaFinancieraId: prev[c.id]?.cuentaFinancieraId ?? "" },
-                    }))
-                  }
-                  placeholder="Monto"
-                  className="w-24"
-                />
-                <Input
-                  aria-label={`Cuenta financiera para el pago de ${c.cliente}`}
-                  value={pagos[c.id]?.cuentaFinancieraId ?? ""}
-                  onChange={(e) =>
-                    setPagos((prev) => ({
-                      ...prev,
-                      [c.id]: { ...prev[c.id], cuentaFinancieraId: e.target.value, monto: prev[c.id]?.monto ?? "" },
-                    }))
-                  }
-                  placeholder="Cuenta financiera (id, pendiente Story 4.3)"
-                  className="w-56"
-                />
-                <Button type="button" size="sm" onClick={() => onPagar(c.id)}>
-                  Registrar pago
-                </Button>
+        {cuentas.map((c) => {
+          const draft = edicion[c.id];
+
+          if (draft) {
+            return (
+              <li key={c.id} className="rounded border border-default px-4 py-2">
+                <div className="flex flex-wrap items-end gap-2">
+                  <FormField htmlFor={`cliente-${c.id}`} label="Deudor">
+                    <Input
+                      id={`cliente-${c.id}`}
+                      value={draft.cliente}
+                      onChange={(e) =>
+                        setEdicion((prev) => ({
+                          ...prev,
+                          [c.id]: { ...draft, cliente: e.target.value },
+                        }))
+                      }
+                      className="w-48"
+                    />
+                  </FormField>
+                  <FormField htmlFor={`monto-${c.id}`} label="Monto original">
+                    <Input
+                      id={`monto-${c.id}`}
+                      value={draft.montoOriginal}
+                      onChange={(e) =>
+                        setEdicion((prev) => ({
+                          ...prev,
+                          [c.id]: { ...draft, montoOriginal: e.target.value },
+                        }))
+                      }
+                      className="w-28"
+                    />
+                  </FormField>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => onGuardarEdicion(c.id)}
+                    disabled={guardandoEdicion === c.id}
+                  >
+                    Guardar
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => onCancelarEdicion(c.id)}>
+                    Cancelar
+                  </Button>
+                </div>
+                {mensajes[c.id] && (
+                  <p role="alert" className="mt-1 text-xs text-danger">
+                    {mensajes[c.id]}
+                  </p>
+                )}
+              </li>
+            );
+          }
+
+          return (
+            <li key={c.id} className="rounded border border-default px-4 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-2 text-sm">
+                  <span className="font-medium">{c.cliente}</span>
+                  <Badge variant={ESTADO_BADGE[c.estado].variant}>{ESTADO_BADGE[c.estado].label}</Badge>
+                  <span className="text-muted">{c.fechaOrigen.toString().slice(0, 10)}</span>
+                </p>
+                <span className="flex items-center gap-3">
+                  <Button type="button" size="sm" variant="link" onClick={() => onEmpezarEdicion(c)}>
+                    Editar
+                  </Button>
+                  <Button type="button" size="sm" variant="link" onClick={() => onEliminar(c)}>
+                    Eliminar
+                  </Button>
+                </span>
               </div>
-            )}
-            {mensajes[c.id] && (
-              <p role="alert" className="mt-1 text-xs text-danger">
-                {mensajes[c.id]}
+              <p className="text-xs text-muted">
+                Debe {formatearMonto(c.montoOriginal)}, pagó {formatearMonto(c.montoPagado)}
               </p>
-            )}
-          </li>
-        ))}
+              {c.estado !== "PAGADO" && (
+                <div className="mt-2 flex flex-wrap items-end gap-2">
+                  <Input
+                    aria-label={`Monto a cobrar de ${c.cliente}`}
+                    value={pagos[c.id]?.monto ?? ""}
+                    onChange={(e) =>
+                      setPagos((prev) => ({
+                        ...prev,
+                        [c.id]: { ...prev[c.id], monto: e.target.value, cuentaFinancieraId: prev[c.id]?.cuentaFinancieraId ?? "" },
+                      }))
+                    }
+                    placeholder="Monto"
+                    className="w-24"
+                  />
+                  <CuentaFinancieraSelect
+                    id={`cuenta-financiera-cobro-${c.id}`}
+                    negocioId={negocioId}
+                    tipo={["CAJA", "BANCO", "OTRO"]}
+                    label="Cuenta destino"
+                    value={pagos[c.id]?.cuentaFinancieraId ?? ""}
+                    onChange={(id) =>
+                      setPagos((prev) => ({
+                        ...prev,
+                        [c.id]: { ...prev[c.id], cuentaFinancieraId: id, monto: prev[c.id]?.monto ?? "" },
+                      }))
+                    }
+                  />
+                  <Button type="button" size="sm" onClick={() => onPagar(c.id)}>
+                    Cobrar
+                  </Button>
+                </div>
+              )}
+              {mensajes[c.id] && (
+                <p role="alert" className="mt-1 text-xs text-danger">
+                  {mensajes[c.id]}
+                </p>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

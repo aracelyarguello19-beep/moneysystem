@@ -63,3 +63,42 @@ export function assertPagoValido(
     throw new PagoExcedeSaldoError();
   }
 }
+
+export class MontoOriginalMenorAPagadoError extends Error {
+  constructor() {
+    super("El monto no puede ser menor a lo que ya se pagó.");
+    this.name = "MontoOriginalMenorAPagadoError";
+  }
+}
+
+// Editar una cuenta por cobrar (corregir monto/deudor) no puede dejarla en un
+// estado imposible: si ya se pagó más de lo que el nuevo monto diría, la
+// cuenta quedaría con saldo negativo.
+export function assertMontoOriginalValido(
+  cxc: Pick<CuentaPorCobrar, "montoPagado">,
+  nuevoMontoOriginal: string
+): void {
+  if (new Decimal(nuevoMontoOriginal).lessThan(cxc.montoPagado)) {
+    throw new MontoOriginalMenorAPagadoError();
+  }
+}
+
+export class CuentaPorCobrarConPagosError extends Error {
+  constructor() {
+    super("Esta cuenta ya tiene pagos registrados — no se puede eliminar.");
+    this.name = "CuentaPorCobrarConPagosError";
+  }
+}
+
+// No se puede eliminar una cuenta por cobrar que ya tiene pagos: el pago
+// cascadea (`onDelete: Cascade` en pagos_cxc), pero el movimiento de caja que
+// ese pago generó no se revierte solo (no hay FK entre movimientos_cuenta y
+// pagos_cxc) — borrar dejaría el dinero cobrado en caja sin ningún rastro de
+// a qué deuda correspondía.
+export function assertCuentaPorCobrarSinPagos(
+  cxc: Pick<CuentaPorCobrar, "montoPagado">
+): void {
+  if (new Decimal(cxc.montoPagado).greaterThan(0)) {
+    throw new CuentaPorCobrarConPagosError();
+  }
+}
