@@ -55,7 +55,7 @@ export function CajaTransacciones({ negocioId }: { negocioId: string }) {
           <tbody className="divide-y divide-outline-variant">
             {movimientos.map((m) => (
               <tr key={m.id} className="hover:bg-surface-container-low transition-colors">
-                <td className="p-3 text-body-md text-on-surface">{m.fecha.toString().slice(0, 10)}</td>
+                <td className="p-3 text-body-md text-on-surface">{m.fecha.toISOString().slice(0, 10)}</td>
                 <td className="p-3 text-body-md text-on-surface">
                   {m.referenciaTipo ? ETIQUETA_REFERENCIA[m.referenciaTipo] ?? m.referenciaTipo : "—"}
                 </td>

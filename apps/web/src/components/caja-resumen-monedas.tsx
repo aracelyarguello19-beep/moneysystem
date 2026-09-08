@@ -8,7 +8,7 @@ import { listarMonedas } from "@/actions/catalogos/listar-monedas";
 import { Card } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { useInventarioCambiado } from "@/lib/inventario-events";
-import { formatearMonto } from "@/lib/moneda";
+import { claseIconoMoneda, formatearMonto, nombreMoneda } from "@/lib/moneda";
 
 // Bento de saldo total por moneda (Efectivo + Banco, nunca Tarjeta — es
 // deuda, no liquidez) — mismo patrón que "Resumen de Saldos" de Stitch
@@ -43,14 +43,14 @@ export function CajaResumenMonedas({ negocioId }: { negocioId: string }) {
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-      {Array.from(totales.entries()).map(([monedaId, total]) => {
+      {Array.from(totales.entries()).map(([monedaId, total], i) => {
         const moneda = monedas.find((m) => m.id === monedaId);
         const cantidadCuentas = liquidas.filter((c) => c.monedaId === monedaId).length;
         return (
           <Card key={monedaId} className="flex flex-col gap-2">
             <div className="flex items-center justify-between text-on-surface-variant">
-              <span className="text-label-lg font-semibold">{moneda?.nombre ?? moneda?.codigo}</span>
-              <Icon name="account_balance_wallet" className="text-secondary" />
+              <span className="text-label-lg font-semibold">{nombreMoneda(moneda?.codigo)}</span>
+              <Icon name="account_balance_wallet" className={claseIconoMoneda(moneda?.codigo, i)} />
             </div>
             <div
               className={`mt-2 text-right text-headline-lg font-bold ${

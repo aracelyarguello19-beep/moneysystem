@@ -49,7 +49,7 @@ export function ActividadReciente({ movimientos }: { movimientos: MovimientoCaja
                     <span className="font-semibold">{config.etiqueta}</span> — {m.cuentaNombre}
                   </p>
                   <p className="text-label-md text-on-surface-variant">
-                    {m.fecha.toString().slice(0, 10)} · {m.tipo === "INGRESO" ? "+" : "-"}
+                    {m.fecha.toISOString().slice(0, 10)} · {m.tipo === "INGRESO" ? "+" : "-"}
                     {formatearMonto(m.monto, m.monedaCodigo)}
                   </p>
                 </div>

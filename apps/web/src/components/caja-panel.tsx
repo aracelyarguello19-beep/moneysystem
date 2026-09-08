@@ -4,14 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import type { CuentaFinanciera, Moneda, TipoGasto } from "@repo/domain";
 import { crearCuentaFinanciera } from "@/actions/cuentas-financieras/crear-cuenta-financiera";
 import { eliminarCuentaFinanciera } from "@/actions/cuentas-financieras/eliminar-cuenta-financiera";
-import { listarCuentasFinancieras } from "@/actions/cuentas-financieras/listar-cuentas-financieras";
+import { obtenerCajaPageData } from "@/actions/cuentas-financieras/obtener-caja-page-data";
 import { registrarMovimientoManual } from "@/actions/cuentas-financieras/registrar-movimiento-manual";
 import { registrarPagoResumenTarjeta } from "@/actions/gastos/registrar-pago-resumen-tarjeta";
 import { registrarInteresTarjeta } from "@/actions/gastos/registrar-interes-tarjeta";
-import { listarMonedas } from "@/actions/catalogos/listar-monedas";
-import { listarTasasCambio, type MonedaConTasa } from "@/actions/catalogos/listar-tasas-cambio";
+import type { MonedaConTasa } from "@/actions/catalogos/listar-tasas-cambio";
 import { registrarTasaCambio } from "@/actions/catalogos/registrar-tasa-cambio";
-import { listarTiposGasto } from "@/actions/catalogos/listar-tipos-gasto";
 import { emitirInventarioCambiado } from "@/lib/inventario-events";
 import { CuentaFinancieraSelect } from "@/components/cuenta-financiera-select";
 import { Button } from "@/components/ui/button";
@@ -20,8 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatearMonto } from "@/lib/moneda";
+import { claseFondoIconoMoneda, formatearMonto } from "@/lib/moneda";
 import { Icon } from "@/components/ui/icon";
+import { cn } from "@/lib/utils";
 
 const TIPOS: { value: CuentaFinanciera["tipo"]; label: string; icon: string }[] = [
   { value: "CAJA", label: "Efectivo", icon: "payments" },
@@ -45,9 +44,18 @@ function colorSaldo(saldo: string): string {
   return Number(saldo) < 0 ? "text-error" : "text-success";
 }
 
-function IconoCuenta({ icon }: { icon: string }) {
+// Sin `claseFondo`: círculo neutro, igual para todas las cuentas (Banco,
+// Tarjeta, Otro). Con `claseFondo` (solo cuentas CAJA, ver CuentaCard): un
+// tono por moneda, para distinguir a simple vista "Efectivo (USD)" de
+// "Efectivo (Gs)" cuando hay más de una caja.
+function IconoCuenta({ icon, claseFondo }: { icon: string; claseFondo?: string }) {
   return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-surface-container-high text-on-surface-variant">
+    <div
+      className={cn(
+        "flex h-9 w-9 shrink-0 items-center justify-center rounded",
+        claseFondo ?? "bg-surface-container-high text-on-surface-variant",
+      )}
+    >
       <Icon name={icon} className="text-[18px]" />
     </div>
   );
@@ -83,21 +91,14 @@ export function CajaPanel({ negocioId }: { negocioId: string }) {
   const [limiteCredito, setLimiteCredito] = useState("");
 
   const cargar = useCallback(async () => {
-    const [cuentasResult, monedasResult, tasasResult, tiposGastoResult] = await Promise.all([
-      listarCuentasFinancieras(negocioId),
-      listarMonedas(negocioId),
-      listarTasasCambio(negocioId),
-      listarTiposGasto(negocioId),
-    ]);
-    if (cuentasResult.ok) setCuentas(cuentasResult.data);
-    if (monedasResult.ok) {
-      setMonedas(monedasResult.data.filter((m) => m.activa));
-      setMonedaId((actual) => actual || monedasResult.data.find((m) => m.esBase)?.id || "");
-    }
-    if (tasasResult.ok) setTasas(tasasResult.data);
-    if (tiposGastoResult.ok) {
-      setTiposGastoFinanciero(tiposGastoResult.data.filter((t) => t.clasificacion === "FINANCIERO"));
-    }
+    const result = await obtenerCajaPageData(negocioId);
+    if (!result.ok) return;
+    const { cuentas: cuentasData, monedas: monedasData, tasas: tasasData, tiposGasto } = result.data;
+    setCuentas(cuentasData);
+    setMonedas(monedasData.filter((m) => m.activa));
+    setMonedaId((actual) => actual || monedasData.find((m) => m.esBase)?.id || "");
+    setTasas(tasasData);
+    setTiposGastoFinanciero(tiposGasto.filter((t) => t.clasificacion === "FINANCIERO"));
   }, [negocioId]);
 
   useEffect(() => {
@@ -357,6 +358,8 @@ function CuentaCard({
   const monedaObj = moneda(monedas, cuenta.monedaId);
   const codigoMoneda = monedaObj?.codigo ?? cuenta.monedaId;
   const esExtranjera = !!monedaObj && !monedaObj.esBase;
+  const indiceMoneda = monedas.findIndex((m) => m.id === cuenta.monedaId);
+  const esCaja = cuenta.tipo === "CAJA";
   const tasaVigente = tasas.find((t) => t.moneda.id === cuenta.monedaId)?.tasaVigente ?? null;
 
   const [agregandoMonto, setAgregandoMonto] = useState(false);
@@ -392,7 +395,10 @@ function CuentaCard({
       </button>
 
       <div className="flex items-center gap-3">
-        <IconoCuenta icon={TIPO_ICON[cuenta.tipo]} />
+        <IconoCuenta
+          icon={esCaja ? "account_balance_wallet" : TIPO_ICON[cuenta.tipo]}
+          claseFondo={esCaja ? claseFondoIconoMoneda(codigoMoneda, indiceMoneda) : undefined}
+        />
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 truncate text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
             {cuenta.nombre}

@@ -10,7 +10,7 @@ import { VentasVsGastosChart } from "@/components/ventas-vs-gastos-chart";
 import { AlertasCriticas } from "@/components/alertas-criticas";
 import { ActividadReciente } from "@/components/actividad-reciente";
 import { useInventarioCambiado } from "@/lib/inventario-events";
-import { formatearMonto } from "@/lib/moneda";
+import { formatearMonto, nombreMoneda, tonoMoneda } from "@/lib/moneda";
 
 // CSV (Costo de Servicios Vendidos) y el desglose Producto/Servicio se
 // quitaron junto con la sesión de Servicios — el sistema es exclusivo de
@@ -137,12 +137,12 @@ export function IndicadoresPanel({ negocioId }: { negocioId: string }) {
             </p>
           )}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {data.saldosPorMoneda.map((s) => (
+            {data.saldosPorMoneda.map((s, i) => (
               <StatCard
                 key={s.codigo}
                 icon={<Icon name="account_balance_wallet" />}
-                tone="primary"
-                label={`Caja (${s.codigo})`}
+                tone={tonoMoneda(s.codigo, i)}
+                label={nombreMoneda(s.codigo)}
                 value={v(formatearMonto(s.total, s.codigo))}
               />
             ))}
@@ -210,7 +210,13 @@ export function IndicadoresPanel({ negocioId }: { negocioId: string }) {
                   <StatCard
                     key={clave}
                     spotlight={clave === "gananciaLiquida"}
-                    className={clave === "gananciaLiquida" ? "bg-success" : undefined}
+                    className={
+                      clave === "gananciaLiquida"
+                        ? Number(indicadores[clave]) < 0
+                          ? "bg-error"
+                          : "bg-success"
+                        : undefined
+                    }
                     icon={<Icon name={METRICAS[clave].icon} />}
                     tone={METRICAS[clave].tone}
                     label={METRICAS[clave].label}

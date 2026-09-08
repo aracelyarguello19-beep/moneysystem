@@ -75,7 +75,7 @@ export function AlertasCriticas({
                   <div className="flex flex-col">
                     <span className="text-body-md font-medium text-on-surface">{c.cliente}</span>
                     <span className="text-label-md text-on-surface-variant">
-                      {c.fechaOrigen.toString().slice(0, 10)}
+                      {c.fechaOrigen.toISOString().slice(0, 10)}
                     </span>
                   </div>
                   <span className="text-label-lg font-semibold text-error">

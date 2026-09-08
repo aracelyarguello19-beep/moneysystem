@@ -70,7 +70,10 @@ export const registrarGasto = withErrorHandling(
       return nuevo;
     });
 
-    revalidatePath("/laboral/gastos");
+    // Sin revalidatePath("/laboral/gastos"): esa página es toda client
+    // components que se sincronizan solos vía `gasto-events` (ver
+    // GastoForm/GastosLista/ResumenGastosChart) — revalidar acá era
+    // redundante contra esa sincronización.
     revalidatePath("/laboral/indicadores");
 
     return {

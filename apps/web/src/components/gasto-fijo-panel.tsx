@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import type { GastoFijo, Moneda } from "@repo/domain";
 import { calcularMetaMinimaDiaria } from "@repo/domain";
 import { crearGastoFijo } from "@/actions/gastos/crear-gasto-fijo";
-import { listarGastosFijos } from "@/actions/gastos/listar-gastos-fijos";
 import { eliminarGastoFijo } from "@/actions/gastos/eliminar-gasto-fijo";
-import { listarMonedas } from "@/actions/catalogos/listar-monedas";
+import { emitirGastoCambiado } from "@/lib/gasto-events";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -16,32 +15,27 @@ import { formatearMonto } from "@/lib/moneda";
 
 // Gastos recurrentes (alquiler, sueldos, suscripciones) separados del
 // registro día a día — su suma (solo activos) define la meta mínima diaria
-// que se muestra en el Dashboard.
-export function GastoFijoPanel({ negocioId }: { negocioId: string }) {
-  const [gastosFijos, setGastosFijos] = useState<GastoFijo[]>([]);
-  const [monedas, setMonedas] = useState<Moneda[]>([]);
+// que se muestra en el Dashboard. `gastosFijos`/`monedas` llegan por prop
+// desde `GastosPanel` (una sola llamada consolidada); crear/eliminar avisan
+// por `gasto-events` en vez de recargar acá.
+export function GastoFijoPanel({
+  negocioId,
+  gastosFijos,
+  monedas,
+}: {
+  negocioId: string;
+  gastosFijos: GastoFijo[];
+  monedas: Moneda[];
+}) {
+  const monedasActivas = monedas.filter((m) => m.activa);
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [nombre, setNombre] = useState("");
   const [monto, setMonto] = useState("");
-  const [monedaId, setMonedaId] = useState("");
-
-  const cargar = useCallback(async () => {
-    const [gastosFijosResult, monedasResult] = await Promise.all([
-      listarGastosFijos(negocioId),
-      listarMonedas(negocioId),
-    ]);
-    if (gastosFijosResult.ok) setGastosFijos(gastosFijosResult.data);
-    if (monedasResult.ok) {
-      setMonedas(monedasResult.data.filter((m) => m.activa));
-      setMonedaId((actual) => actual || monedasResult.data.find((m) => m.esBase)?.id || "");
-    }
-  }, [negocioId]);
-
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
+  const [monedaId, setMonedaId] = useState(
+    () => monedasActivas.find((m) => m.esBase)?.id ?? monedasActivas[0]?.id ?? ""
+  );
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -55,13 +49,13 @@ export function GastoFijoPanel({ negocioId }: { negocioId: string }) {
     }
     setNombre("");
     setMonto("");
-    await cargar();
+    emitirGastoCambiado();
   }
 
   async function onEliminar(g: GastoFijo) {
     if (!window.confirm(`¿Eliminar el gasto fijo "${g.nombre}"? Esta acción no se puede deshacer.`)) return;
     const result = await eliminarGastoFijo(g.id, negocioId);
-    if (result.ok) await cargar();
+    if (result.ok) emitirGastoCambiado();
   }
 
   const metaMinimaDiaria = calcularMetaMinimaDiaria(gastosFijos);
@@ -83,7 +77,7 @@ export function GastoFijoPanel({ negocioId }: { negocioId: string }) {
         </FormField>
         <FormField htmlFor="moneda-gasto-fijo" label="Moneda">
           <Select id="moneda-gasto-fijo" value={monedaId} onChange={(e) => setMonedaId(e.target.value)}>
-            {monedas.map((m) => (
+            {monedasActivas.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.codigo}
               </option>

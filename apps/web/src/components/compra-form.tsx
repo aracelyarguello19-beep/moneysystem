@@ -302,7 +302,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
                   <td className="px-4 py-3 text-body-md text-on-surface-variant">{c.proveedor ?? "—"}</td>
                   <td className="px-4 py-3 text-body-md text-on-surface-variant">{c.formaPago}</td>
                   <td className="px-4 py-3 text-body-md text-on-surface-variant">
-                    {c.fecha.toString().slice(0, 10)}
+                    {c.fecha.toISOString().slice(0, 10)}
                   </td>
                 </tr>
               ))}

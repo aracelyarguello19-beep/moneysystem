@@ -65,7 +65,7 @@ export function VentasLista({ negocioId }: { negocioId: string }) {
         <Card key={venta.id}>
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-2 text-xs text-muted">
-              {venta.fecha.toString().slice(0, 10)} · {venta.formaCobro}
+              {venta.fecha.toISOString().slice(0, 10)} · {venta.formaCobro}
               {venta.cliente && ` · ${venta.cliente}`}
               <Badge
                 variant={

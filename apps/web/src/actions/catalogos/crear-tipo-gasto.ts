@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import type { TipoGasto } from "@repo/domain";
 import { crearTipoGastoSchema } from "@repo/domain/schemas";
 import { withRlsContext } from "@repo/database";
@@ -25,7 +24,10 @@ export const crearTipoGasto = withErrorHandling(async (input: unknown): Promise<
     })
   );
 
-  revalidatePath("/laboral/configuracion");
+  // Sin revalidatePath: TipoGastoCatalogo se refresca solo (cargar()
+  // después del create) — ver mismo criterio en registrar-gasto.ts.
+  // (Antes apuntaba a "/laboral/configuracion", una ruta que ya no existe —
+  // el catálogo de tipos de gasto vive en el popup de "/laboral/gastos".)
 
   return {
     id: tipoGasto.id,

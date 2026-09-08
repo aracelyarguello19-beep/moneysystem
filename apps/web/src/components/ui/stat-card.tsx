@@ -11,6 +11,8 @@ const iconToneVariants = cva("shrink-0 text-[20px]", {
   variants: {
     tone: {
       primary: "text-primary",
+      secondary: "text-secondary",
+      tertiary: "text-tertiary",
       danger: "text-error",
       warning: "text-warning",
       neutral: "text-on-surface-variant",
@@ -23,6 +25,8 @@ const deltaVariants = cva("inline-flex items-center gap-1 rounded px-2 py-0.5 te
   variants: {
     tone: {
       primary: "bg-success/10 text-success",
+      secondary: "bg-secondary/10 text-secondary",
+      tertiary: "bg-tertiary/10 text-tertiary",
       danger: "bg-error/10 text-error",
       warning: "bg-warning/10 text-warning",
       neutral: "bg-surface-container text-on-surface-variant",

@@ -95,7 +95,8 @@ export const editarGasto = withErrorHandling(
       return actualizado;
     });
 
-    revalidatePath("/laboral/gastos");
+    // Sin revalidatePath("/laboral/gastos") — ver mismo comentario en
+    // registrar-gasto.ts.
     revalidatePath("/laboral/indicadores");
     revalidatePath("/laboral/caja");
 

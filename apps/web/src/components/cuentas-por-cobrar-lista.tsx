@@ -37,6 +37,7 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
   const [mensajes, setMensajes] = useState<Record<string, string>>({});
   const [edicion, setEdicion] = useState<Record<string, EdicionDraft | undefined>>({});
   const [guardandoEdicion, setGuardandoEdicion] = useState<string | null>(null);
+  const [pagando, setPagando] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const result = await listarCuentasPorCobrar(negocioId);
@@ -48,13 +49,22 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
   }, [cargar]);
 
   async function onPagar(cxcId: string) {
+    // Guarda contra doble click/doble submit: sin esto, un segundo click
+    // antes de que la lista se refresque manda el mismo monto dos veces — el
+    // primero cobra bien, el segundo choca contra un saldo que ya quedó en
+    // cero y tira "el pago excede el saldo pendiente" (confuso: el pago SÍ
+    // se había registrado, solo que el segundo intento sobraba).
+    if (pagando === cxcId) return;
+
     const pago = pagos[cxcId];
     if (!pago?.monto || !pago?.cuentaFinancieraId) return;
 
+    setPagando(cxcId);
     const result = await registrarPagoCxC(negocioId, cxcId, {
       monto: pago.monto,
       cuentaFinancieraId: pago.cuentaFinancieraId,
     });
+    setPagando(null);
 
     setMensajes((prev) => ({ ...prev, [cxcId]: result.ok ? "" : result.error.message }));
     if (result.ok) {
@@ -176,7 +186,7 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
                 <p className="flex items-center gap-2 text-sm">
                   <span className="font-medium">{c.cliente}</span>
                   <Badge variant={ESTADO_BADGE[c.estado].variant}>{ESTADO_BADGE[c.estado].label}</Badge>
-                  <span className="text-muted">{c.fechaOrigen.toString().slice(0, 10)}</span>
+                  <span className="text-muted">{c.fechaOrigen.toISOString().slice(0, 10)}</span>
                 </p>
                 <span className="flex items-center gap-3">
                   <Button type="button" size="sm" variant="link" onClick={() => onEmpezarEdicion(c)}>
@@ -217,7 +227,7 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
                       }))
                     }
                   />
-                  <Button type="button" size="sm" onClick={() => onPagar(c.id)}>
+                  <Button type="button" size="sm" onClick={() => onPagar(c.id)} disabled={pagando === c.id}>
                     Cobrar
                   </Button>
                 </div>

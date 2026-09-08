@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/middleware";
+import { ACCOUNT_ID_HEADER, ACCOUNT_EMAIL_HEADER } from "@/lib/auth-headers";
 
 // [Source: architecture/frontend-architecture.md#Protected Route Pattern]
 export async function middleware(request: NextRequest) {
@@ -24,7 +25,26 @@ export async function middleware(request: NextRequest) {
   if (!user && !isPublicRoute) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  return response;
+
+  if (!user) return response;
+
+  // Propaga la identidad ya verificada acá (único `auth.getUser()` — round-trip
+  // a Supabase Auth — por navegación) a las Server Actions de la misma request
+  // vía un header interno de `request`, no de `response`: `headers()` en un
+  // Server Component/Action lee lo que el middleware fija en el `request` que
+  // pasa a `NextResponse.next`, nunca lo que trajo el cliente, así que un
+  // header con este nombre enviado por el cliente no puede suplantar esto.
+  // Sin esto, `getCurrentAccount()` (lib/auth.ts) volvía a pagar su propio
+  // `auth.getUser()` en cada una de las ~40 Server Actions que la usan.
+  const headers = new Headers(request.headers);
+  headers.set(ACCOUNT_ID_HEADER, user.id);
+  headers.set(ACCOUNT_EMAIL_HEADER, user.email ?? "");
+
+  const forwarded = NextResponse.next({ request: { headers } });
+  for (const cookie of response.cookies.getAll()) {
+    forwarded.cookies.set(cookie);
+  }
+  return forwarded;
 }
 
 export const config = {
