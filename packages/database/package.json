@@ -6,6 +6,7 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
+    "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:integration": "vitest run --passWithNoTests tests",
