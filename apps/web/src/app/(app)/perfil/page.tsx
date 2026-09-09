@@ -24,7 +24,10 @@ export default async function PerfilPage() {
 
       {result.ok && (
         <>
-          <EditarPerfilForm nombreActual={result.data.nombre} />
+          <EditarPerfilForm
+            nombreActual={result.data.nombre}
+            avatarUrlActual={result.data.avatarUrl}
+          />
           <EliminarCuentaButton />
         </>
       )}

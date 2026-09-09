@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import dynamic from "next/dynamic";
 import {
   actualizarPerfilSchema,
   type ActualizarPerfilInput,
@@ -12,15 +13,29 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 
-export function EditarPerfilForm({ nombreActual }: { nombreActual: string | null }) {
+// Carga diferida: mismo criterio que en `CrearNegocioForm` — el cliente de
+// Supabase Storage no debería viajar en el bundle inicial de /perfil.
+const ImagenUpload = dynamic(
+  () => import("@/components/imagen-upload").then((m) => m.ImagenUpload),
+  { ssr: false }
+);
+
+export function EditarPerfilForm({
+  nombreActual,
+  avatarUrlActual,
+}: {
+  nombreActual: string | null;
+  avatarUrlActual: string | null;
+}) {
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ActualizarPerfilInput>({
     resolver: zodResolver(actualizarPerfilSchema),
-    defaultValues: { nombre: nombreActual ?? "" },
+    defaultValues: { nombre: nombreActual ?? "", avatarUrl: avatarUrlActual },
   });
 
   async function onSubmit(data: ActualizarPerfilInput) {
@@ -37,6 +52,19 @@ export function EditarPerfilForm({ nombreActual }: { nombreActual: string | null
       className="flex w-full max-w-sm flex-col gap-3"
       noValidate
     >
+      <Controller
+        control={control}
+        name="avatarUrl"
+        render={({ field }) => (
+          <ImagenUpload
+            value={field.value ?? null}
+            onChange={field.onChange}
+            folder="avatar"
+            label="Foto de perfil"
+            redondo
+          />
+        )}
+      />
       <FormField htmlFor="nombre" label="Nombre" error={errors.nombre?.message}>
         <Input id="nombre" type="text" className="w-full" {...register("nombre")} />
       </FormField>

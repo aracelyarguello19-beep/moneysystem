@@ -22,6 +22,7 @@ export const listarNegocios = withErrorHandling(async (): Promise<Negocio[]> => 
     nombre: n.nombre,
     tipo: n.tipo as Negocio["tipo"],
     estado: n.estado as Negocio["estado"],
+    logoUrl: n.logoUrl,
     createdAt: n.createdAt,
     archivedAt: n.archivedAt,
   }));

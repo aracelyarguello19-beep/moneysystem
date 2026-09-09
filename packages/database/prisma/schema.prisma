@@ -21,6 +21,7 @@ model Cuenta {
   id        String   @id @db.Uuid
   email     String
   nombre    String?
+  avatarUrl String?  @map("avatar_url")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   negocios           Negocio[]
@@ -48,6 +49,7 @@ model Negocio {
   nombre     String
   tipo       String    @default("MIXTO")
   estado     String    @default("ACTIVO")
+  logoUrl    String?   @map("logo_url")
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
   archivedAt DateTime? @map("archived_at") @db.Timestamptz
 
@@ -145,7 +147,7 @@ model Item {
 
   negocio    Negocio     @relation(fields: [negocioId], references: [id], onDelete: Cascade)
   cuenta     Cuenta      @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
-  moneda     Moneda      @relation(fields: [monedaId], references: [id])
+  moneda     Moneda      @relation(fields: [monedaId], references: [id], onDelete: Cascade)
   compras    Compra[]
   ventaItems VentaItem[]
 
@@ -184,10 +186,13 @@ model Compra {
 
   negocio          Negocio           @relation(fields: [negocioId], references: [id], onDelete: Cascade)
   cuenta           Cuenta            @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
-  item             Item              @relation(fields: [itemId], references: [id])
-  moneda           Moneda            @relation(fields: [monedaId], references: [id])
-  cuentaFinanciera CuentaFinanciera? @relation(fields: [cuentaFinancieraId], references: [id])
-  tasaCambio       TasaCambio?       @relation(fields: [tasaCambioId], references: [id])
+  item             Item              @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  moneda           Moneda            @relation(fields: [monedaId], references: [id], onDelete: Cascade)
+  // Cascade, no SetNull: `chk_compra_medio_pago` exige `cuentaFinancieraId`
+  // NOT NULL salvo forma_pago = CREDITO_PROVEEDOR — anularla violaría ese
+  // check en cualquier compra que no haya sido a crédito.
+  cuentaFinanciera CuentaFinanciera? @relation(fields: [cuentaFinancieraId], references: [id], onDelete: Cascade)
+  tasaCambio       TasaCambio?       @relation(fields: [tasaCambioId], references: [id], onDelete: SetNull)
 
   @@map("compras")
 }
@@ -215,9 +220,9 @@ model Venta {
 
   negocio          Negocio           @relation(fields: [negocioId], references: [id], onDelete: Cascade)
   cuenta           Cuenta            @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
-  moneda           Moneda            @relation(fields: [monedaId], references: [id])
-  cuentaFinanciera CuentaFinanciera? @relation(fields: [cuentaFinancieraId], references: [id])
-  tasaCambio       TasaCambio?       @relation(fields: [tasaCambioId], references: [id])
+  moneda           Moneda            @relation(fields: [monedaId], references: [id], onDelete: Cascade)
+  cuentaFinanciera CuentaFinanciera? @relation(fields: [cuentaFinancieraId], references: [id], onDelete: SetNull)
+  tasaCambio       TasaCambio?       @relation(fields: [tasaCambioId], references: [id], onDelete: SetNull)
   ventaItems       VentaItem[]
   cuentasPorCobrar CuentaPorCobrar[]
 
@@ -248,7 +253,10 @@ model VentaItem {
   esLibre          Boolean  @default(false) @map("es_libre")
 
   venta Venta @relation(fields: [ventaId], references: [id], onDelete: Cascade)
-  item  Item? @relation(fields: [itemId], references: [id])
+  // Cascade, no SetNull: `chk_venta_item_producto_libre` exige `itemId` NOT
+  // NULL salvo que sea una venta libre con `nombreLibre` — anularlo violaría
+  // ese check en cualquier línea de catálogo normal.
+  item  Item? @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@map("venta_items")
 }
@@ -273,7 +281,7 @@ model CuentaPorCobrar {
 
   negocio Negocio   @relation(fields: [negocioId], references: [id], onDelete: Cascade)
   cuenta  Cuenta    @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
-  venta   Venta     @relation(fields: [ventaId], references: [id])
+  venta   Venta     @relation(fields: [ventaId], references: [id], onDelete: Cascade)
   pagos   PagoCxC[]
 
   @@map("cuentas_por_cobrar")
@@ -290,7 +298,7 @@ model PagoCxC {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   cuentaPorCobrar  CuentaPorCobrar  @relation(fields: [cuentaPorCobrarId], references: [id], onDelete: Cascade)
-  cuentaFinanciera CuentaFinanciera @relation(fields: [cuentaFinancieraId], references: [id])
+  cuentaFinanciera CuentaFinanciera @relation(fields: [cuentaFinancieraId], references: [id], onDelete: Cascade)
 
   @@map("pagos_cxc")
 }
@@ -321,9 +329,9 @@ model Gasto {
 
   cuenta           Cuenta           @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
   negocio          Negocio          @relation(fields: [negocioId], references: [id], onDelete: Cascade)
-  tipoGasto        TipoGasto        @relation(fields: [tipoGastoId], references: [id])
-  moneda           Moneda           @relation(fields: [monedaId], references: [id])
-  cuentaFinanciera CuentaFinanciera @relation(fields: [cuentaFinancieraId], references: [id])
+  tipoGasto        TipoGasto        @relation(fields: [tipoGastoId], references: [id], onDelete: Cascade)
+  moneda           Moneda           @relation(fields: [monedaId], references: [id], onDelete: Cascade)
+  cuentaFinanciera CuentaFinanciera @relation(fields: [cuentaFinancieraId], references: [id], onDelete: Cascade)
 
   @@map("gastos")
 }
@@ -343,7 +351,7 @@ model GastoFijo {
 
   cuenta  Cuenta  @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
   negocio Negocio @relation(fields: [negocioId], references: [id], onDelete: Cascade)
-  moneda  Moneda  @relation(fields: [monedaId], references: [id])
+  moneda  Moneda  @relation(fields: [monedaId], references: [id], onDelete: Cascade)
 
   @@map("gastos_fijos")
 }
@@ -376,7 +384,7 @@ model CuentaFinanciera {
 
   cuenta             Cuenta              @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
   negocio            Negocio             @relation(fields: [negocioId], references: [id], onDelete: Cascade)
-  moneda             Moneda              @relation(fields: [monedaId], references: [id])
+  moneda             Moneda              @relation(fields: [monedaId], references: [id], onDelete: Cascade)
   movimientosCuenta  MovimientoCuenta[]
   movimientosTarjeta MovimientoTarjeta[]
   gastos             Gasto[]

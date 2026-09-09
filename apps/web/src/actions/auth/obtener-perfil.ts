@@ -17,6 +17,7 @@ export const obtenerPerfil = withErrorHandling(async (): Promise<Cuenta> => {
     id: registro.id,
     email: registro.email,
     nombre: registro.nombre,
+    avatarUrl: registro.avatarUrl,
     createdAt: registro.createdAt,
   };
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import type { Compra, Item, Moneda } from "@repo/domain";
 import { registrarCompra } from "@/actions/inventario/registrar-compra";
 import { crearItem } from "@/actions/inventario/crear-item";
@@ -17,6 +18,14 @@ import { Select } from "@/components/ui/select";
 import { formatearMonto } from "@/lib/moneda";
 
 const FORMAS_PAGO: Compra["formaPago"][] = ["EFECTIVO", "BANCO", "TARJETA", "CREDITO_PROVEEDOR"];
+
+// Carga diferida: `ImagenItemUpload` trae el cliente completo de
+// Supabase Storage, que no hace falta hasta que se abre el formulario de
+// nuevo producto (mismo patrón que item-catalogo.tsx).
+const ImagenItemUpload = dynamic(
+  () => import("@/components/imagen-item-upload").then((m) => m.ImagenItemUpload),
+  { ssr: false }
+);
 
 type CompraListada = Compra & { itemNombre: string; itemNroCalce: string | null };
 
@@ -46,6 +55,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
   const [creandoProducto, setCreandoProducto] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [nuevoNroCalce, setNuevoNroCalce] = useState("");
+  const [nuevaImagenUrl, setNuevaImagenUrl] = useState<string | null>(null);
   const [nuevoMensaje, setNuevoMensaje] = useState<string | null>(null);
   const [creandoEnProgreso, setCreandoEnProgreso] = useState(false);
 
@@ -86,6 +96,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
       costoCompra: costoUnitario || "0",
       stockActual: "0",
       nroCalce: nuevoNroCalce.trim() || undefined,
+      imagenUrl: nuevaImagenUrl ?? undefined,
     });
     setCreandoEnProgreso(false);
     if (!result.ok) {
@@ -98,6 +109,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
     setCreandoProducto(false);
     setNuevoNombre("");
     setNuevoNroCalce("");
+    setNuevaImagenUrl(null);
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -259,6 +271,9 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
               onChange={(e) => setNuevoNroCalce(e.target.value)}
             />
           </FormField>
+          <FormField htmlFor="nueva-imagen-compra" label="Foto del producto (opcional)">
+            <ImagenItemUpload value={nuevaImagenUrl} onChange={setNuevaImagenUrl} />
+          </FormField>
           <p className="text-xs text-muted sm:col-span-2">
             El costo unitario cargado arriba ({costoUnitario || "0"}) queda como su costo inicial.
           </p>
@@ -271,7 +286,14 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
             >
               Crear y usar
             </Button>
-            <Button type="button" variant="link" onClick={() => setCreandoProducto(false)}>
+            <Button
+              type="button"
+              variant="link"
+              onClick={() => {
+                setCreandoProducto(false);
+                setNuevaImagenUrl(null);
+              }}
+            >
               Cancelar
             </Button>
           </div>

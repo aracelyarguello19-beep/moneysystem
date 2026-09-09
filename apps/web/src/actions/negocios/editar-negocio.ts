@@ -2,19 +2,29 @@
 
 import { revalidatePath } from "next/cache";
 import type { Negocio, Result } from "@repo/domain";
+import { editarNegocioSchema } from "@repo/domain/schemas";
 import { withRlsContext } from "@repo/database";
 import { getCurrentAccount } from "@/lib/auth";
 
-// No usa `withErrorHandling`: el AC3 de Story 1.3 exige que un intento de
-// acceso a un negocio de otra cuenta por id directo se rechace en la capa de
-// datos, no solo en la interfaz. `tx.negocio.update({ where: { id } })` bajo
-// RLS falla (P2025) tanto si el id no existe como si pertenece a otra
-// cuenta — ambos casos deben verse idénticos hacia afuera (nunca revelar
-// cuál de los dos ocurrió), así que se mapean al mismo `NOT_FOUND`.
-// [Source: architecture/error-handling-strategy.md#Error Response Format]
-export async function archivarNegocio(negocioId: string): Promise<Result<Negocio>> {
+// Edita nombre y logo — nunca el tipo (fija secciones/indicadores del
+// negocio, ver TipoNegocio en negocio.ts) ni el estado (eso es
+// eliminarNegocio, no esta acción).
+export async function editarNegocio(input: unknown): Promise<Result<Negocio>> {
   const requestId = crypto.randomUUID();
   const timestamp = new Date().toISOString();
+
+  const parsed = editarNegocioSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: {
+        code: "VALIDATION",
+        message: parsed.error.issues[0]?.message ?? "Datos inválidos.",
+        requestId,
+        timestamp,
+      },
+    };
+  }
 
   const cuenta = await getCurrentAccount();
   if (!cuenta) {
@@ -32,8 +42,8 @@ export async function archivarNegocio(negocioId: string): Promise<Result<Negocio
   try {
     const negocio = await withRlsContext(cuenta.id, null, (tx) =>
       tx.negocio.update({
-        where: { id: negocioId },
-        data: { estado: "ARCHIVADO", archivedAt: new Date() },
+        where: { id: parsed.data.negocioId },
+        data: { nombre: parsed.data.nombre, logoUrl: parsed.data.logoUrl ?? null },
       })
     );
 
@@ -47,6 +57,7 @@ export async function archivarNegocio(negocioId: string): Promise<Result<Negocio
         nombre: negocio.nombre,
         tipo: negocio.tipo as Negocio["tipo"],
         estado: negocio.estado as Negocio["estado"],
+        logoUrl: negocio.logoUrl,
         createdAt: negocio.createdAt,
         archivedAt: negocio.archivedAt,
       },

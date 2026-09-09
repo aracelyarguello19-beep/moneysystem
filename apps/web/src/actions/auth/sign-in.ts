@@ -53,5 +53,8 @@ export async function signIn(input: unknown): Promise<Result<never>> {
     await tx.$executeRawUnsafe("select public.ensure_cuenta()");
   });
 
-  redirect("/negocios");
+  // El destino post-login es el dashboard (Indicadores); AppLayout
+  // (app/(app)/layout.tsx) redirige a /onboarding si la cuenta todavía no
+  // tiene ningún negocio, así que no hace falta distinguir ese caso acá.
+  redirect("/laboral/indicadores");
 }

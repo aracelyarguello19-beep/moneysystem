@@ -27,5 +27,6 @@ export type SignInInput = z.infer<typeof signInSchema>;
 
 export const actualizarPerfilSchema = z.object({
   nombre: z.string().min(1, "El nombre es obligatorio"),
+  avatarUrl: z.string().url().nullable().optional(),
 });
 export type ActualizarPerfilInput = z.infer<typeof actualizarPerfilSchema>;

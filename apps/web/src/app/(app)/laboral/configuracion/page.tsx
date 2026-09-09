@@ -7,6 +7,12 @@ import { Icon } from "@/components/ui/icon";
 
 const ATAJOS = [
   {
+    href: "/negocios",
+    icon: "storefront",
+    titulo: "Mis negocios",
+    descripcion: "Crear, editar y eliminar tus negocios.",
+  },
+  {
     href: "/laboral/caja",
     icon: "account_balance_wallet",
     titulo: "Monedas",

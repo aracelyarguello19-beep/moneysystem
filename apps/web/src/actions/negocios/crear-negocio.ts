@@ -15,7 +15,12 @@ export const crearNegocio = withErrorHandling(async (input: unknown): Promise<Ne
 
   const negocio = await withRlsContext(cuenta.id, null, (tx) =>
     tx.negocio.create({
-      data: { cuentaId: cuenta.id, nombre: parsed.nombre, tipo: parsed.tipo },
+      data: {
+        cuentaId: cuenta.id,
+        nombre: parsed.nombre,
+        tipo: parsed.tipo,
+        logoUrl: parsed.logoUrl ?? null,
+      },
     })
   );
 
@@ -36,6 +41,7 @@ export const crearNegocio = withErrorHandling(async (input: unknown): Promise<Ne
     nombre: negocio.nombre,
     tipo: negocio.tipo as Negocio["tipo"],
     estado: negocio.estado as Negocio["estado"],
+    logoUrl: negocio.logoUrl,
     createdAt: negocio.createdAt,
     archivedAt: negocio.archivedAt,
   };

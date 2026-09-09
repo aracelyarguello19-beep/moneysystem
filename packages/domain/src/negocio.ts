@@ -11,6 +11,7 @@ export interface Negocio {
   nombre: string;
   tipo: TipoNegocio;
   estado: "ACTIVO" | "ARCHIVADO";
+  logoUrl: string | null;
   createdAt: Date;
   archivedAt: Date | null;
 }

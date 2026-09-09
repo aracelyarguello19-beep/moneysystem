@@ -13,7 +13,10 @@ export const actualizarPerfil = withErrorHandling(async (input: unknown): Promis
   if (!cuenta) throw new Error("No hay sesión activa");
 
   await withRlsContext(cuenta.id, null, (tx) =>
-    tx.cuenta.update({ where: { id: cuenta.id }, data: { nombre: parsed.nombre } })
+    tx.cuenta.update({
+      where: { id: cuenta.id },
+      data: { nombre: parsed.nombre, avatarUrl: parsed.avatarUrl ?? null },
+    })
   );
 
   revalidatePath("/perfil");
