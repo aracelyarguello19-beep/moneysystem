@@ -19,10 +19,13 @@ export const buttonVariants = cva(
         ghost: "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface",
         link: "text-tertiary underline-offset-2 hover:underline",
       },
+      // `min-h-*` solo hasta `md`: en touch el target tiene que llegar a ~44px
+      // (WCAG 2.5.5), pero en desktop el mouse no lo necesita y estirar los
+      // botones rompería la densidad de las filas de acciones del design system.
       size: {
-        sm: "px-3 py-1",
-        md: "px-4 py-2",
-        lg: "px-4 py-2.5",
+        sm: "min-h-10 px-3 py-1 md:min-h-0",
+        md: "min-h-11 px-4 py-2 md:min-h-0",
+        lg: "min-h-11 px-4 py-2.5 md:min-h-0",
       },
     },
     defaultVariants: {

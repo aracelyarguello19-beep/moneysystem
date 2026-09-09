@@ -86,7 +86,11 @@ export function TipoGastoCatalogo({ negocioId, tiposGasto }: { negocioId: string
           <DialogTitle>Tipos de gasto</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-wrap items-end gap-2" noValidate>
+          <form
+            onSubmit={handleSubmit(onSubmit)}
+            className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2"
+            noValidate
+          >
             <FormField htmlFor="nombre-tipo-gasto" label="Nombre" error={errors.nombre?.message}>
               <Input id="nombre-tipo-gasto" {...register("nombre")} />
             </FormField>
@@ -102,7 +106,7 @@ export function TipoGastoCatalogo({ negocioId, tiposGasto }: { negocioId: string
                 ))}
               </Select>
             </FormField>
-            <Button type="submit" disabled={isSubmitting || !isValid}>
+            <Button type="submit" disabled={isSubmitting || !isValid} className="sm:col-span-2 sm:justify-self-start">
               Agregar
             </Button>
           </form>
@@ -115,9 +119,12 @@ export function TipoGastoCatalogo({ negocioId, tiposGasto }: { negocioId: string
 
           <ul className="flex flex-col gap-2">
             {tiposGasto.map((t) => (
-              <li key={t.id} className="flex items-center justify-between rounded border border-default px-4 py-2">
-                <p className="font-medium">{t.nombre}</p>
-                <span className="flex items-center gap-3">
+              <li
+                key={t.id}
+                className="flex flex-col gap-1 rounded border border-default px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:px-4"
+              >
+                <p className="min-w-0 break-words font-medium">{t.nombre}</p>
+                <span className="flex flex-wrap items-center gap-3 sm:shrink-0">
                   <p className="text-xs text-muted">{t.clasificacion}</p>
                   <Button
                     type="button"

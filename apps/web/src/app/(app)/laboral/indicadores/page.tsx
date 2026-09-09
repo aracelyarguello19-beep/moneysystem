@@ -7,7 +7,7 @@ export default function IndicadoresPage() {
   const negocioActivoId = useNegocioActivoStore((state) => state.negocioActivoId);
 
   return (
-    <main className="flex flex-col gap-6 p-8">
+    <main className="flex flex-col gap-6 p-margin-mobile md:p-margin-desktop">
       {!negocioActivoId ? (
         <>
           <h1 className="text-xl font-semibold">Dashboard</h1>

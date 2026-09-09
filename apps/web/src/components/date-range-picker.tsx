@@ -110,7 +110,9 @@ export function DateRangePicker({
       </Button>
 
       {abierto && (
-        <div className="absolute left-0 top-full z-10 mt-1 flex w-72 flex-col gap-1 rounded border border-default bg-surface-elevated p-2 shadow-lg">
+        // `max-w-[calc(100vw-2rem)]`: el popover mide 288px fijos y, si el
+        // disparador cae cerca del borde derecho en mobile, se sale del viewport.
+        <div className="absolute left-0 top-full z-10 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col gap-1 rounded border border-default bg-surface-elevated p-2 shadow-lg">
           <p className="px-1 text-xs uppercase text-subtle">Atajos rápidos</p>
           {ATAJOS.map((atajo) => (
             <Button
@@ -130,13 +132,15 @@ export function DateRangePicker({
 
           <div className="mt-1 flex flex-col gap-1 border-t pt-2">
             <p className="px-1 text-xs uppercase text-subtle">Rango manual</p>
-            <div className="flex items-center gap-2 px-1">
+            {/* Apilados en mobile: dos `input[type=date]` lado a lado dentro
+                de un popover de 288px quedan por debajo de su ancho mínimo
+                intrínseco y el navegador recorta el control de calendario. */}
+            <div className="flex flex-col gap-2 px-1 sm:flex-row sm:items-center">
               <Input
                 type="date"
                 aria-label="Desde"
                 value={desdeManual}
                 onChange={(e) => setDesdeManual(e.target.value)}
-                className="w-full"
               />
               <span className="text-xs text-subtle">a</span>
               <Input
@@ -144,7 +148,6 @@ export function DateRangePicker({
                 aria-label="Hasta"
                 value={hastaManual}
                 onChange={(e) => setHastaManual(e.target.value)}
-                className="w-full"
               />
             </div>
             <Button

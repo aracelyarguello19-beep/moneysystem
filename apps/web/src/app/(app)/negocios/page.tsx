@@ -11,7 +11,7 @@ export default async function NegociosPage() {
   const negocios = result.ok ? result.data : [];
 
   return (
-    <main className="flex flex-col gap-6 p-8">
+    <main className="flex flex-col gap-6 p-margin-mobile md:p-margin-desktop">
       <div>
         <h1 className="text-xl font-semibold">Negocios</h1>
         <p className="text-sm text-muted">Sesión iniciada como {cuenta?.email}.</p>
@@ -29,10 +29,10 @@ export default async function NegociosPage() {
         {negocios.map((negocio) => (
           <li
             key={negocio.id}
-            className="flex items-center justify-between rounded border border-default px-4 py-2"
+            className="flex flex-col gap-2 rounded border border-default px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4"
           >
-            <div>
-              <p className="font-medium">{negocio.nombre}</p>
+            <div className="min-w-0">
+              <p className="break-words font-medium">{negocio.nombre}</p>
               <p className="text-xs text-muted">
                 {negocio.estado} · {negocio.tipo}
               </p>

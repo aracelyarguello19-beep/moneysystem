@@ -21,8 +21,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function DesignSystemPage() {
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-8 p-8">
-      <header className="flex items-start justify-between gap-4">
+    <div className="mx-auto flex max-w-3xl flex-col gap-8 p-margin-mobile md:p-margin-desktop">
+      <header className="flex flex-col items-start justify-between gap-4 sm:flex-row">
         <div className="flex flex-col gap-1">
           <h1 className="text-xl font-semibold">Design System — Sistema de Control Financiero</h1>
           <p className="text-sm text-muted">

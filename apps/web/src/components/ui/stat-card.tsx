@@ -66,7 +66,7 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-lg border p-5",
+        "flex flex-col gap-3 rounded-lg border p-4 sm:p-5",
         spotlight
           ? "border-transparent bg-primary text-on-primary"
           : "border-outline-variant bg-surface-container-lowest",
@@ -74,13 +74,13 @@ export function StatCard({
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {icon && (
             <span className={cn(iconToneVariants({ tone }), spotlight && "text-on-primary")}>{icon}</span>
           )}
           <span
             className={cn(
-              "text-label-lg font-semibold",
+              "truncate text-label-lg font-semibold",
               spotlight ? "text-on-primary" : "text-on-surface-variant",
             )}
           >
@@ -90,6 +90,7 @@ export function StatCard({
         {delta && (
           <span
             className={cn(
+              "shrink-0",
               deltaVariants({ tone: spotlight ? "neutral" : tone }),
               spotlight && "bg-on-primary/10 text-on-primary",
             )}
@@ -98,8 +99,16 @@ export function StatCard({
           </span>
         )}
       </div>
-      <div>
-        <p className={cn("text-headline-md font-bold", spotlight ? "text-on-primary" : "text-on-surface")}>
+      <div className="min-w-0">
+        {/* Los montos en guaraníes son largos ("Gs. 1.234.567.890"): a 24px no
+            entran en una card de ~160px, así que bajan un escalón en mobile y
+            pueden cortar en vez de estirar la card. */}
+        <p
+          className={cn(
+            "break-words text-headline-sm font-bold sm:text-headline-md",
+            spotlight ? "text-on-primary" : "text-on-surface",
+          )}
+        >
           {value}
         </p>
         {caption && (

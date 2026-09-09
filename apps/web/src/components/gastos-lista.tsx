@@ -88,14 +88,19 @@ export function GastosLista({
               }}
             />
           ) : (
-            <li key={g.id} className="rounded border border-default px-4 py-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span>
+            <li key={g.id} className="rounded border border-default px-3 py-2 text-sm sm:px-4">
+              {/* En mobile la fila se apila (descripción arriba, monto y
+                  acciones abajo): en una sola línea el monto y los dos botones
+                  no entran en 375px y empujaban scroll horizontal. */}
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <span className="min-w-0 break-words">
                   {g.tipoGastoNombre} · {g.fecha.toISOString().slice(0, 10)}{" "}
                   <span className="text-xs text-muted">({g.ambito === "PERSONAL" ? "Personal" : "Negocio"})</span>
                 </span>
-                <span className="flex items-center gap-3 text-muted">
-                  {formatearMonto(g.monto, codigoMoneda(g.monedaId))} · {g.clasificacion}
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted sm:shrink-0">
+                  <span className="break-words">
+                    {formatearMonto(g.monto, codigoMoneda(g.monedaId))} · {g.clasificacion}
+                  </span>
                   <Button type="button" variant="link" onClick={() => setEditandoId(g.id)}>
                     Editar
                   </Button>
@@ -174,7 +179,10 @@ function GastoEditarFila({
 
   return (
     <li className="rounded border border-default bg-surface-container-low p-3">
-      <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
+      {/* Grid en vez de `flex flex-wrap`: los selects de tipo de gasto y cuenta
+          financiera tienen texto largo y en flex-wrap se dimensionan por
+          contenido, desbordando la fila en mobile. En grid la columna manda. */}
+      <form onSubmit={onSubmit} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-3" noValidate>
         <FormField htmlFor={`ambito-${gasto.id}`} label="Ámbito">
           <Select
             id={`ambito-${gasto.id}`}
@@ -204,7 +212,7 @@ function GastoEditarFila({
             value={monto}
             onChange={(e) => setMonto(e.target.value)}
             required
-            className="w-28"
+            inputMode="decimal"
           />
         </FormField>
         <FormField htmlFor={`moneda-${gasto.id}`} label="Moneda">
@@ -246,14 +254,16 @@ function GastoEditarFila({
           onChange={setCuentaFinancieraId}
           label="Cuenta financiera"
         />
-        <Button type="submit" size="sm" disabled={isSubmitting}>
-          Guardar
-        </Button>
-        <Button type="button" variant="link" onClick={onCancelar}>
-          Cancelar
-        </Button>
+        <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-3">
+          <Button type="submit" size="sm" disabled={isSubmitting}>
+            Guardar
+          </Button>
+          <Button type="button" variant="link" onClick={onCancelar}>
+            Cancelar
+          </Button>
+        </div>
         {error && (
-          <p role="alert" className="w-full text-sm text-danger">
+          <p role="alert" className="text-sm text-danger sm:col-span-2 lg:col-span-3">
             {error}
           </p>
         )}

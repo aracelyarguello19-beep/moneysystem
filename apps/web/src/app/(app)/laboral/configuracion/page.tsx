@@ -36,7 +36,7 @@ export default function ConfiguracionLaboralPage() {
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-surface-container-high text-on-surface-variant">
                 <Icon name={atajo.icon} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-label-lg font-semibold text-on-surface">{atajo.titulo}</p>
                 <p className="mt-1 text-body-md text-on-surface-variant">{atajo.descripcion}</p>
               </div>

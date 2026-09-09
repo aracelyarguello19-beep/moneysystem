@@ -23,7 +23,7 @@ export function ArchivarNegocioButton({ negocioId }: { negocioId: string }) {
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col items-start gap-1 sm:items-end">
       <Button type="button" variant="link" className="text-danger" onClick={handleClick} disabled={isPending}>
         Archivar
       </Button>

@@ -12,14 +12,15 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="mb-8 flex flex-col justify-between gap-4 border-b border-outline-variant pb-4 md:flex-row md:items-end">
-      <div>
+    <header className="mb-6 flex flex-col justify-between gap-4 border-b border-outline-variant pb-4 md:mb-8 md:flex-row md:items-end">
+      <div className="min-w-0">
         <h1 className="font-display text-headline-lg-mobile font-light tracking-tight text-on-surface md:text-headline-lg">
           {title}
         </h1>
         {description && <p className="mt-1 text-body-md text-on-surface-variant">{description}</p>}
       </div>
-      {actions && <div className="flex gap-3">{actions}</div>}
+      {/* `flex-wrap`: varias acciones no entran en una fila a 375px. */}
+      {actions && <div className="flex flex-wrap gap-2 sm:gap-3">{actions}</div>}
     </header>
   );
 }

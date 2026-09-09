@@ -29,6 +29,7 @@ export function CuentaFinancieraSelect({
   onChange,
   label,
   id,
+  className,
 }: {
   negocioId: string;
   tipo: CuentaFinanciera["tipo"] | CuentaFinanciera["tipo"][];
@@ -36,6 +37,8 @@ export function CuentaFinancieraSelect({
   onChange: (id: string) => void;
   label: string;
   id: string;
+  /** Para que el call site controle el ancho/span dentro de su grilla. */
+  className?: string;
 }) {
   const [cuentas, setCuentas] = useState<CuentaFinanciera[]>([]);
   const [monedas, setMonedas] = useState<Moneda[]>([]);
@@ -74,7 +77,7 @@ export function CuentaFinancieraSelect({
   const codigoMoneda = (monedaId: string) => monedas.find((m) => m.id === monedaId)?.codigo;
 
   return (
-    <FormField htmlFor={id} label={label}>
+    <FormField htmlFor={id} label={label} className={className}>
       <Select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
         {cuentas.map((c) => {
           const codigo = codigoMoneda(c.monedaId);

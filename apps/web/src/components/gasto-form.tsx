@@ -89,7 +89,14 @@ export function GastoForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
+      {/* Grid en vez de `flex flex-wrap`: en flex-wrap cada campo se dimensiona
+          por su contenido (el select de tipo de gasto trae textos largos) y
+          desborda la fila en mobile. Una columna hasta `sm`. */}
+      <form
+        onSubmit={onSubmit}
+        className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        noValidate
+      >
         <FormField htmlFor="ambito-gasto" label="Ámbito">
           <Select
             id="ambito-gasto"
@@ -119,7 +126,7 @@ export function GastoForm({
             value={monto}
             onChange={(e) => setMonto(e.target.value)}
             required
-            className="w-28"
+            inputMode="decimal"
           />
         </FormField>
         <FormField htmlFor="moneda-gasto" label="Moneda">
@@ -165,7 +172,13 @@ export function GastoForm({
           onChange={setCuentaFinancieraId}
           label="Cuenta financiera"
         />
-        <Button type="submit" disabled={isSubmitting}>
+        {/* `justify-self-start` (no `w-auto`): un grid item por defecto tiene
+            `justify-self: stretch`, así que `w-auto` igual llenaría el span. */}
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          className="sm:col-span-2 sm:justify-self-start lg:col-span-3"
+        >
           Registrar gasto
         </Button>
       </form>

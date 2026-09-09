@@ -63,8 +63,10 @@ export function VentasLista({ negocioId }: { negocioId: string }) {
     <div className="flex flex-col gap-3">
       {ventas.map((venta) => (
         <Card key={venta.id}>
-          <div className="flex items-center justify-between">
-            <p className="flex items-center gap-2 text-xs text-muted">
+          {/* Cabecera de la venta apilada en mobile: fecha + forma de cobro +
+              cliente + badge no entran en una línea junto al total a 375px. */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
               {venta.fecha.toISOString().slice(0, 10)} · {venta.formaCobro}
               {venta.cliente && ` · ${venta.cliente}`}
               <Badge
@@ -79,7 +81,7 @@ export function VentasLista({ negocioId }: { negocioId: string }) {
                 {venta.estado}
               </Badge>
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 sm:shrink-0">
               <span className="text-sm font-semibold text-success">
                 +
                 {formatearMonto(
@@ -100,8 +102,8 @@ export function VentasLista({ negocioId }: { negocioId: string }) {
           </div>
           <ul className="mt-1 flex flex-col gap-1">
             {venta.items.map((item) => (
-              <li key={item.id} className="flex items-center gap-2 text-sm">
-                <span>{item.itemNombre}</span>
+              <li key={item.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                <span className="break-words">{item.itemNombre}</span>
                 <span className="text-muted">{formatearMonto(item.precioUnitario)}</span>
                 {item.itemTipo === "PRODUCTO" && (
                   <span className="text-xs text-subtle">

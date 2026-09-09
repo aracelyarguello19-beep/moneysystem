@@ -51,20 +51,22 @@ export function ImagenItemUpload({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2">
       {value ? (
         // eslint-disable-next-line @next/next/no-img-element -- URL pública externa de Supabase Storage
-        <img src={value} alt="" className="h-12 w-12 rounded object-cover" />
+        <img src={value} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />
       ) : (
-        <div className="h-12 w-12 rounded bg-neutral-bg" />
+        <div className="h-12 w-12 shrink-0 rounded bg-neutral-bg" />
       )}
-      <div className="flex flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1">
+        {/* `max-w-full`: el input de archivo nativo tiene un ancho intrínseco
+            grande (botón + nombre del archivo) y desborda la fila en mobile. */}
         <input
           type="file"
           accept="image/*"
           onChange={onFile}
           disabled={subiendo}
-          className="text-xs"
+          className="max-w-full text-xs"
           aria-label="Foto del producto"
         />
         {value && (

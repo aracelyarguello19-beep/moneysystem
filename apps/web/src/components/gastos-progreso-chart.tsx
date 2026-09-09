@@ -24,9 +24,9 @@ export function GastosProgresoChart({ gastos }: { gastos: GastoResumenTipo[] }) 
     <div className="flex flex-col gap-4">
       {gastos.map((g, i) => (
         <div key={`${g.tipoGastoId}:${g.ambito}`}>
-          <div className="mb-1 flex justify-between text-body-md">
-            <span className="text-on-surface">{g.nombre}</span>
-            <span className="font-medium text-on-surface">{formatearMonto(g.total)}</span>
+          <div className="mb-1 flex justify-between gap-2 text-body-md">
+            <span className="truncate text-on-surface">{g.nombre}</span>
+            <span className="shrink-0 font-medium text-on-surface">{formatearMonto(g.total)}</span>
           </div>
           <div className="h-2 w-full rounded-full bg-surface-container">
             <div

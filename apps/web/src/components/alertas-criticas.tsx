@@ -42,15 +42,15 @@ export function AlertasCriticas({
               {stockBajo.slice(0, MAX_FILAS).map((item) => (
                 <li
                   key={item.id}
-                  className="flex items-center justify-between rounded border border-outline-variant bg-surface-container-lowest p-2"
+                  className="flex items-center justify-between gap-2 rounded border border-outline-variant bg-surface-container-lowest p-2"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded bg-surface-container text-on-surface-variant">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-surface-container text-on-surface-variant">
                       <Icon name="inventory_2" className="text-[18px]" />
                     </div>
-                    <span className="text-body-md font-medium text-on-surface">{item.nombre}</span>
+                    <span className="truncate text-body-md font-medium text-on-surface">{item.nombre}</span>
                   </div>
-                  <span className="rounded bg-warning/10 px-2 py-0.5 text-[11px] font-bold text-warning">
+                  <span className="shrink-0 whitespace-nowrap rounded bg-warning/10 px-2 py-0.5 text-[11px] font-bold text-warning">
                     Quedan {item.stockActual}
                   </span>
                 </li>
@@ -70,15 +70,15 @@ export function AlertasCriticas({
               {pendientes.slice(0, MAX_FILAS).map((c) => (
                 <li
                   key={c.id}
-                  className="flex items-center justify-between rounded border-l-2 border-l-error border-y border-r border-outline-variant bg-surface-container-lowest p-2"
+                  className="flex items-center justify-between gap-2 rounded border-l-2 border-l-error border-y border-r border-outline-variant bg-surface-container-lowest p-2"
                 >
-                  <div className="flex flex-col">
-                    <span className="text-body-md font-medium text-on-surface">{c.cliente}</span>
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate text-body-md font-medium text-on-surface">{c.cliente}</span>
                     <span className="text-label-md text-on-surface-variant">
                       {c.fechaOrigen.toISOString().slice(0, 10)}
                     </span>
                   </div>
-                  <span className="text-label-lg font-semibold text-error">
+                  <span className="shrink-0 text-label-lg font-semibold text-error">
                     {formatearMonto((Number(c.montoOriginal) - Number(c.montoPagado)).toString())}
                   </span>
                 </li>

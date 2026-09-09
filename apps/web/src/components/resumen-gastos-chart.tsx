@@ -120,7 +120,7 @@ export function ResumenGastosChart({ negocioId }: { negocioId: string }) {
         <p className="mb-2 text-sm text-muted">No hay gastos registrados en el período elegido.</p>
       )}
 
-      <div style={{ height: 220 }}>
+      <div className="h-[180px] sm:h-[220px]">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={datos} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <defs>

@@ -165,8 +165,8 @@ export function CajaPanel({ negocioId }: { negocioId: string }) {
         </Button>
       ) : (
         <Card className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <CardHeader className="p-0">
+          <div className="flex items-center justify-between gap-2">
+            <CardHeader className="min-w-0 p-0">
               <CardTitle>Nueva cuenta</CardTitle>
             </CardHeader>
             <Button type="button" variant="ghost" size="sm" onClick={() => setFormAbierto(false)} className="gap-1">
@@ -193,7 +193,11 @@ export function CajaPanel({ negocioId }: { negocioId: string }) {
             ))}
           </div>
 
-          <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
+          <form
+            onSubmit={onSubmit}
+            className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            noValidate
+          >
             {tipo === "CAJA" && (
               <FormField htmlFor="moneda-libre-caja" label="Moneda">
                 <Input
@@ -202,7 +206,7 @@ export function CajaPanel({ negocioId }: { negocioId: string }) {
                   onChange={(e) => setMonedaCodigoLibre(e.target.value.toUpperCase())}
                   placeholder="PYG, USD, BRL..."
                   list="monedas-existentes-caja"
-                  className="w-32 uppercase"
+                  className="uppercase"
                   required
                 />
                 <datalist id="monedas-existentes-caja">
@@ -246,7 +250,7 @@ export function CajaPanel({ negocioId }: { negocioId: string }) {
                     id="limite-caja"
                     value={limiteCredito}
                     onChange={(e) => setLimiteCredito(e.target.value)}
-                    className="w-32"
+                    inputMode="decimal"
                   />
                 </FormField>
                 <FormField htmlFor="moneda-caja-tarjeta" label="Moneda">
@@ -281,7 +285,11 @@ export function CajaPanel({ negocioId }: { negocioId: string }) {
                 </FormField>
               </>
             )}
-            <Button type="submit" disabled={isSubmitting} className="gap-2">
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="gap-2 sm:col-span-2 sm:justify-self-start lg:col-span-3"
+            >
               <Icon name="add" fill className="text-[18px]" />
               Crear cuenta
             </Button>
@@ -385,24 +393,28 @@ function CuentaCard({
 
   return (
     <div className="group relative flex flex-col gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest p-4 transition-shadow hover:shadow-md">
+      {/* Sin `opacity-0` en mobile: en touch no hay hover, así que el botón de
+          eliminar quedaba permanentemente invisible. El fade arranca en `md`. */}
       <button
         type="button"
         onClick={onEliminar}
         aria-label={`Eliminar ${cuenta.nombre}`}
-        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded text-on-surface-variant opacity-0 transition-opacity hover:bg-error-container hover:text-on-error-container group-hover:opacity-100"
+        className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded text-on-surface-variant transition-opacity hover:bg-error-container hover:text-on-error-container md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100"
       >
         <Icon name="delete" className="text-[16px]" />
       </button>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 pr-8">
         <IconoCuenta
           icon={esCaja ? "account_balance_wallet" : TIPO_ICON[cuenta.tipo]}
           claseFondo={esCaja ? claseFondoIconoMoneda(codigoMoneda, indiceMoneda) : undefined}
         />
         <div className="min-w-0">
-          <p className="flex items-center gap-1.5 truncate text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
-            {cuenta.nombre}
-            <Badge className="normal-case">{codigoMoneda}</Badge>
+          {/* `truncate` va en el span del nombre, no en el <p> flex: en un
+              contenedor flex el truncate no llega a los hijos. */}
+          <p className="flex min-w-0 items-center gap-1.5 text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
+            <span className="truncate">{cuenta.nombre}</span>
+            <Badge className="shrink-0 normal-case">{codigoMoneda}</Badge>
           </p>
         </div>
       </div>
@@ -523,21 +535,23 @@ function TarjetaCard({
 
   return (
     <div className="group relative flex flex-col gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest p-4 transition-shadow hover:shadow-md sm:col-span-2 lg:col-span-1">
+      {/* Mismo criterio que la card de cuenta: sin hover en touch, el botón no
+          puede depender de `group-hover` para ser visible. */}
       <button
         type="button"
         onClick={onEliminar}
         aria-label={`Eliminar ${tarjeta.nombre}`}
-        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded text-on-surface-variant opacity-0 transition-opacity hover:bg-error-container hover:text-on-error-container group-hover:opacity-100"
+        className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded text-on-surface-variant transition-opacity hover:bg-error-container hover:text-on-error-container md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100"
       >
         <Icon name="delete" className="text-[16px]" />
       </button>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 pr-8">
         <IconoCuenta icon="credit_card" />
         <div className="min-w-0">
-          <p className="flex items-center gap-1.5 truncate text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
-            {tarjeta.nombre}
-            <Badge className="normal-case">{codigoMoneda}</Badge>
+          <p className="flex min-w-0 items-center gap-1.5 text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
+            <span className="truncate">{tarjeta.nombre}</span>
+            <Badge className="shrink-0 normal-case">{codigoMoneda}</Badge>
           </p>
         </div>
       </div>
@@ -564,13 +578,13 @@ function TarjetaCard({
         </button>
       ) : (
         <div className="flex flex-col gap-3 border-t border-outline-variant pt-3">
-          <form onSubmit={onPagoResumen} className="flex flex-wrap items-end gap-2">
+          <form onSubmit={onPagoResumen} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3">
             <FormField htmlFor={`pago-${tarjeta.id}`} label="Pagar resumen">
               <Input
                 id={`pago-${tarjeta.id}`}
                 value={montoPago}
                 onChange={(e) => setMontoPago(e.target.value)}
-                className="w-24"
+                inputMode="decimal"
                 placeholder="Monto"
               />
             </FormField>
@@ -586,13 +600,13 @@ function TarjetaCard({
               Pagar
             </Button>
           </form>
-          <form onSubmit={onInteres} className="flex flex-wrap items-end gap-2">
+          <form onSubmit={onInteres} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3">
             <FormField htmlFor={`interes-${tarjeta.id}`} label="Registrar interés">
               <Input
                 id={`interes-${tarjeta.id}`}
                 value={montoInteres}
                 onChange={(e) => setMontoInteres(e.target.value)}
-                className="w-24"
+                inputMode="decimal"
                 placeholder="Monto"
               />
             </FormField>

@@ -66,7 +66,9 @@ export function VentasVsGastosChart({ puntos }: { puntos: PuntoTendencia[] }) {
         <CardDescription>Tendencia del período elegido</CardDescription>
       </CardHeader>
 
-      <div style={{ height: 260 }}>
+      {/* Altura menor en mobile: 260px sobre un ancho de ~310px deja el
+          gráfico casi cuadrado y aplasta las etiquetas del eje X. */}
+      <div className="h-[200px] sm:h-[260px]">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={datos} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <defs>
@@ -140,7 +142,7 @@ export function VentasVsGastosChart({ puntos }: { puntos: PuntoTendencia[] }) {
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-4 flex justify-center gap-6">
+      <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2">
         <div className="flex items-center gap-2">
           <div className="h-3 w-3 rounded-full bg-success" />
           <span className="text-body-md text-on-surface-variant">Ventas</span>

@@ -8,7 +8,7 @@ export default async function PerfilPage() {
   const result = await obtenerPerfil();
 
   return (
-    <main className="flex flex-col gap-10 p-8">
+    <main className="flex flex-col gap-10 p-margin-mobile md:p-margin-desktop">
       <div>
         <h1 className="text-xl font-semibold">Mi perfil</h1>
         {result.ok && (

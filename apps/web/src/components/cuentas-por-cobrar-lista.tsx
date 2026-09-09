@@ -131,8 +131,8 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
 
           if (draft) {
             return (
-              <li key={c.id} className="rounded border border-default px-4 py-2">
-                <div className="flex flex-wrap items-end gap-2">
+              <li key={c.id} className="rounded border border-default px-3 py-2 sm:px-4">
+                <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
                   <FormField htmlFor={`cliente-${c.id}`} label="Deudor">
                     <Input
                       id={`cliente-${c.id}`}
@@ -143,7 +143,6 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
                           [c.id]: { ...draft, cliente: e.target.value },
                         }))
                       }
-                      className="w-48"
                     />
                   </FormField>
                   <FormField htmlFor={`monto-${c.id}`} label="Monto original">
@@ -156,20 +155,22 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
                           [c.id]: { ...draft, montoOriginal: e.target.value },
                         }))
                       }
-                      className="w-28"
+                      inputMode="decimal"
                     />
                   </FormField>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => onGuardarEdicion(c.id)}
-                    disabled={guardandoEdicion === c.id}
-                  >
-                    Guardar
-                  </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => onCancelarEdicion(c.id)}>
-                    Cancelar
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => onGuardarEdicion(c.id)}
+                      disabled={guardandoEdicion === c.id}
+                    >
+                      Guardar
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => onCancelarEdicion(c.id)}>
+                      Cancelar
+                    </Button>
+                  </div>
                 </div>
                 {mensajes[c.id] && (
                   <p role="alert" className="mt-1 text-xs text-danger">
@@ -181,14 +182,14 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
           }
 
           return (
-            <li key={c.id} className="rounded border border-default px-4 py-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">{c.cliente}</span>
+            <li key={c.id} className="rounded border border-default px-3 py-2 sm:px-4">
+              <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2">
+                <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                  <span className="break-words font-medium">{c.cliente}</span>
                   <Badge variant={ESTADO_BADGE[c.estado].variant}>{ESTADO_BADGE[c.estado].label}</Badge>
                   <span className="text-muted">{c.fechaOrigen.toISOString().slice(0, 10)}</span>
                 </p>
-                <span className="flex items-center gap-3">
+                <span className="flex flex-wrap items-center gap-3 sm:shrink-0">
                   <Button type="button" size="sm" variant="link" onClick={() => onEmpezarEdicion(c)}>
                     Editar
                   </Button>
@@ -201,7 +202,9 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
                 Debe {formatearMonto(c.montoOriginal)}, pagó {formatearMonto(c.montoPagado)}
               </p>
               {c.estado !== "PAGADO" && (
-                <div className="mt-2 flex flex-wrap items-end gap-2">
+                // Cobro en grilla: el select de cuenta destino trae nombres
+                // largos ("Efectivo (PYG)") que en flex-wrap desbordan.
+                <div className="mt-2 grid grid-cols-1 items-end gap-3 sm:grid-cols-3">
                   <Input
                     aria-label={`Monto a cobrar de ${c.cliente}`}
                     value={pagos[c.id]?.monto ?? ""}
@@ -212,7 +215,7 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
                       }))
                     }
                     placeholder="Monto"
-                    className="w-24"
+                    inputMode="decimal"
                   />
                   <CuentaFinancieraSelect
                     id={`cuenta-financiera-cobro-${c.id}`}
@@ -227,7 +230,13 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
                       }))
                     }
                   />
-                  <Button type="button" size="sm" onClick={() => onPagar(c.id)} disabled={pagando === c.id}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => onPagar(c.id)}
+                    disabled={pagando === c.id}
+                    className="w-full sm:w-auto"
+                  >
                     Cobrar
                   </Button>
                 </div>

@@ -55,7 +55,9 @@ export function ProductoBuscador({
         autoComplete="off"
       />
       {abierto && filtrados.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-56 w-full min-w-56 overflow-auto rounded border border-outline-variant bg-surface-container-lowest shadow-lg">
+        // `max-w-[calc(100vw-2rem)]`: el `min-w-56` (224px) puede superar el
+        // ancho del contenedor en mobile y sacar el desplegable del viewport.
+        <ul className="absolute z-10 mt-1 max-h-56 w-full min-w-56 max-w-[calc(100vw-2rem)] overflow-auto rounded border border-outline-variant bg-surface-container-lowest shadow-lg">
           {filtrados.map((p) => (
             <li key={p.id}>
               <button

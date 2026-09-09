@@ -139,10 +139,18 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
         </p>
       )}
 
-      <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
+      {/* Grid en vez de `flex flex-wrap`: 8 campos dimensionados por contenido
+          (buscador de producto, selects de moneda/forma de pago/cuenta)
+          desbordan la fila en mobile. Una columna hasta `sm`. */}
+      <form
+        onSubmit={onSubmit}
+        className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        noValidate
+      >
         <Button
           type="button"
           variant="link"
+          className="justify-self-start sm:col-span-2 lg:col-span-3"
           onClick={() => {
             setCreandoProducto(true);
             setNuevoMensaje(null);
@@ -161,7 +169,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
             value={costoUnitario}
             onChange={(e) => setCostoUnitario(e.target.value)}
             required
-            className="w-28"
+            inputMode="decimal"
           />
         </FormField>
         <FormField htmlFor="cantidad-compra" label="Cantidad">
@@ -170,7 +178,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
             value={cantidad}
             onChange={(e) => setCantidad(e.target.value)}
             required
-            className="w-24"
+            inputMode="numeric"
           />
         </FormField>
         <FormField htmlFor="fecha-compra" label="Fecha">
@@ -226,13 +234,17 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
             label="Cuenta financiera"
           />
         )}
-        <Button type="submit" disabled={isSubmitting || productos.length === 0}>
+        <Button
+          type="submit"
+          disabled={isSubmitting || productos.length === 0}
+          className="sm:col-span-2 sm:justify-self-start lg:col-span-3"
+        >
           Registrar compra
         </Button>
       </form>
 
       {creandoProducto && (
-        <div className="flex flex-wrap items-end gap-2 rounded border border-dashed p-2">
+        <div className="grid grid-cols-1 items-end gap-3 rounded border border-dashed p-3 sm:grid-cols-2">
           <FormField htmlFor="nuevo-nombre-compra" label="Nombre del producto">
             <Input
               id="nuevo-nombre-compra"
@@ -245,25 +257,26 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
               id="nuevo-nro-calce-compra"
               value={nuevoNroCalce}
               onChange={(e) => setNuevoNroCalce(e.target.value)}
-              className="w-24"
             />
           </FormField>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-muted sm:col-span-2">
             El costo unitario cargado arriba ({costoUnitario || "0"}) queda como su costo inicial.
           </p>
-          <Button
-            type="button"
-            size="sm"
-            disabled={!nuevoNombre.trim() || creandoEnProgreso}
-            onClick={onCrearProducto}
-          >
-            Crear y usar
-          </Button>
-          <Button type="button" variant="link" onClick={() => setCreandoProducto(false)}>
-            Cancelar
-          </Button>
+          <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={!nuevoNombre.trim() || creandoEnProgreso}
+              onClick={onCrearProducto}
+            >
+              Crear y usar
+            </Button>
+            <Button type="button" variant="link" onClick={() => setCreandoProducto(false)}>
+              Cancelar
+            </Button>
+          </div>
           {nuevoMensaje && (
-            <p role="alert" className="w-full text-xs text-danger">
+            <p role="alert" className="text-xs text-danger sm:col-span-2">
               {nuevoMensaje}
             </p>
           )}

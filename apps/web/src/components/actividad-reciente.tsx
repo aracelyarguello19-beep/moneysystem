@@ -44,8 +44,8 @@ export function ActividadReciente({ movimientos }: { movimientos: MovimientoCaja
                 >
                   <Icon name={config.icon} className="text-[18px]" />
                 </div>
-                <div>
-                  <p className="text-body-md text-on-surface">
+                <div className="min-w-0">
+                  <p className="break-words text-body-md text-on-surface">
                     <span className="font-semibold">{config.etiqueta}</span> — {m.cuentaNombre}
                   </p>
                   <p className="text-label-md text-on-surface-variant">

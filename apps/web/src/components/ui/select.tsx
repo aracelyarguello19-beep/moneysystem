@@ -15,7 +15,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     <select
       ref={ref}
       className={cn(
-        "rounded border border-default px-3 py-2 text-sm",
+        // Mismo criterio que Input: 16px en mobile evita el zoom de iOS, y
+        // `w-full` impide que el ancho intrínseco de la opción más larga
+        // (ej. nombres de cuentas) estire y desborde la grilla del formulario.
+        "min-h-11 w-full rounded border border-default px-3 py-2 text-base md:min-h-0 md:text-sm",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className,

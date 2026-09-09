@@ -114,7 +114,7 @@ export function ItemCatalogo({
   return (
     <Card className="flex flex-col overflow-hidden p-0">
       <div className="flex flex-col gap-4 border-b border-outline-variant bg-surface-container-low/50 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setFiltro("todos")}
@@ -138,7 +138,9 @@ export function ItemCatalogo({
             </span>
           </button>
         </div>
-        <div className="flex w-full items-center gap-3 sm:w-auto">
+        {/* El buscador y el botón se apilan hasta `sm`: juntos en una fila de
+            375px el input queda por debajo de un ancho usable. */}
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
           <div className="relative w-full sm:w-64">
             <Icon
               name="search"
@@ -152,7 +154,7 @@ export function ItemCatalogo({
               aria-label="Buscar producto"
             />
           </div>
-          <Button type="button" onClick={() => setCreandoAbierto((v) => !v)} className="gap-2">
+          <Button type="button" onClick={() => setCreandoAbierto((v) => !v)} className="shrink-0 gap-2">
             <Icon name="add" fill className="text-[18px]" />
             Agregar producto
           </Button>
@@ -160,7 +162,11 @@ export function ItemCatalogo({
       </div>
 
       {creandoAbierto && (
-        <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2 border-b border-outline-variant p-4" noValidate>
+        <form
+          onSubmit={onSubmit}
+          className="grid grid-cols-1 items-end gap-3 border-b border-outline-variant p-4 sm:grid-cols-2 lg:grid-cols-3"
+          noValidate
+        >
           <FormField htmlFor="nombre-item" label="Nombre">
             <Input id="nombre-item" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
           </FormField>
@@ -168,15 +174,17 @@ export function ItemCatalogo({
             <Input id="proveedor-item" value={proveedor} onChange={(e) => setProveedor(e.target.value)} />
           </FormField>
           <FormField htmlFor="nro-calce-item" label="Nro de calce (opcional)">
-            <Input id="nro-calce-item" value={nroCalce} onChange={(e) => setNroCalce(e.target.value)} className="w-32" />
+            <Input id="nro-calce-item" value={nroCalce} onChange={(e) => setNroCalce(e.target.value)} />
           </FormField>
           <ImagenItemUpload value={imagenUrl} onChange={setImagenUrl} />
-          <Button type="submit" disabled={isSubmitting}>
-            Guardar
-          </Button>
-          <Button type="button" variant="link" onClick={() => setCreandoAbierto(false)}>
-            Cancelar
-          </Button>
+          <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-3">
+            <Button type="submit" disabled={isSubmitting}>
+              Guardar
+            </Button>
+            <Button type="button" variant="link" onClick={() => setCreandoAbierto(false)}>
+              Cancelar
+            </Button>
+          </div>
         </form>
       )}
 

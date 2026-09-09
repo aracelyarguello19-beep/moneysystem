@@ -40,17 +40,22 @@ export function CrearNegocioForm() {
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="flex items-end gap-2"
+      className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-2"
       noValidate
     >
-      <FormField htmlFor="nombre" label="Nombre del negocio" error={errors.nombre?.message}>
+      <FormField
+        htmlFor="nombre"
+        label="Nombre del negocio"
+        error={errors.nombre?.message}
+        className="sm:max-w-xs sm:flex-1"
+      >
         <Input id="nombre" type="text" {...register("nombre")} />
       </FormField>
-      <Button type="submit" disabled={isSubmitting}>
+      <Button type="submit" disabled={isSubmitting} className="sm:shrink-0">
         Crear negocio
       </Button>
       {serverMessage && (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className="text-sm text-danger sm:w-full">
           {serverMessage}
         </p>
       )}

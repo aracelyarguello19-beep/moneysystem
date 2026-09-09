@@ -18,9 +18,12 @@ export function DialogContent({
       <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/50" />
       <DialogPrimitive.Content
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2",
-          "rounded-lg border border-outline-variant bg-surface-container-lowest p-5 shadow-lg",
-          "max-h-[85vh] overflow-y-auto",
+          // `w-[calc(100%-2rem)]` en vez de `w-full`: el content es `fixed`,
+          // así que el 100% es el viewport y sin el margen el modal queda
+          // pegado a los bordes en mobile. `max-w-lg` sigue mandando en ≥sm.
+          "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2",
+          "rounded-lg border border-outline-variant bg-surface-container-lowest p-4 shadow-lg sm:p-5",
+          "max-h-[90dvh] overflow-y-auto overscroll-contain sm:max-h-[85vh]",
           className,
         )}
         {...props}

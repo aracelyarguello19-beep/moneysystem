@@ -42,18 +42,23 @@ export function CajaResumenMonedas({ negocioId }: { negocioId: string }) {
   if (totales.size === 0) return null;
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from(totales.entries()).map(([monedaId, total], i) => {
         const moneda = monedas.find((m) => m.id === monedaId);
         const cantidadCuentas = liquidas.filter((c) => c.monedaId === monedaId).length;
         return (
           <Card key={monedaId} className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-on-surface-variant">
-              <span className="text-label-lg font-semibold">{nombreMoneda(moneda?.codigo)}</span>
-              <Icon name="account_balance_wallet" className={claseIconoMoneda(moneda?.codigo, i)} />
+            <div className="flex items-center justify-between gap-2 text-on-surface-variant">
+              <span className="truncate text-label-lg font-semibold">{nombreMoneda(moneda?.codigo)}</span>
+              <Icon
+                name="account_balance_wallet"
+                className={`shrink-0 ${claseIconoMoneda(moneda?.codigo, i)}`}
+              />
             </div>
+            {/* 32px es demasiado para un saldo en guaraníes en una card a una
+                sola columna: baja un escalón en mobile y puede cortar. */}
             <div
-              className={`mt-2 text-right text-headline-lg font-bold ${
+              className={`mt-2 break-words text-right text-headline-md font-bold sm:text-headline-lg ${
                 total.isNegative() ? "text-error" : "text-success"
               }`}
             >

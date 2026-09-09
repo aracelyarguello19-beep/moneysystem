@@ -10,7 +10,7 @@ export default async function StatusPage() {
   const isConnected = await checkDatabaseHealth();
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-2 p-8">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-2 p-6 sm:p-8">
       <h1 className="text-xl font-semibold">Money System</h1>
       <p>
         Sistema:{" "}

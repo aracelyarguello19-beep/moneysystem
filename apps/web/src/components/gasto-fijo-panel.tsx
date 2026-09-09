@@ -62,7 +62,11 @@ export function GastoFijoPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
+      <form
+        onSubmit={onSubmit}
+        className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        noValidate
+      >
         <FormField htmlFor="nombre-gasto-fijo" label="Nombre">
           <Input id="nombre-gasto-fijo" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
         </FormField>
@@ -72,7 +76,7 @@ export function GastoFijoPanel({
             value={monto}
             onChange={(e) => setMonto(e.target.value)}
             required
-            className="w-28"
+            inputMode="decimal"
           />
         </FormField>
         <FormField htmlFor="moneda-gasto-fijo" label="Moneda">
@@ -84,7 +88,7 @@ export function GastoFijoPanel({
             ))}
           </Select>
         </FormField>
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting} className="sm:col-span-2 sm:justify-self-start lg:col-span-1">
           Agregar gasto fijo
         </Button>
       </form>
@@ -97,9 +101,9 @@ export function GastoFijoPanel({
 
       <div className="flex flex-col gap-2">
         {gastosFijos.map((g) => (
-          <Card key={g.id} className="flex items-center justify-between">
-            <span className="text-sm">{g.nombre}</span>
-            <span className="flex items-center gap-3 text-sm text-muted">
+          <Card key={g.id} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <span className="min-w-0 break-words text-sm">{g.nombre}</span>
+            <span className="flex flex-wrap items-center gap-3 text-sm text-muted sm:shrink-0">
               {formatearMonto(g.monto, monedas.find((m) => m.id === g.monedaId)?.codigo)}
               <Button type="button" variant="link" onClick={() => onEliminar(g)}>
                 Eliminar

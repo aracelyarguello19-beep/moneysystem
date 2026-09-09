@@ -1,9 +1,18 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Money System",
   description: "Control financiero personal y laboral, multi-negocio.",
+};
+
+// Explícito aunque Next ya inyecta uno por defecto: sin `width=device-width`
+// los navegadores móviles renderizan con un viewport virtual de ~980px y
+// ningún breakpoint de Tailwind llega a activarse. `maximumScale` sin definir
+// a propósito — limitar el zoom rompe la accesibilidad.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

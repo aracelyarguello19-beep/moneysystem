@@ -477,7 +477,10 @@ export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
 
         {/* Carrito activo — misma grilla de columnas que Stitch: #, Producto, Cant, Precio, Total */}
         <Card className="flex flex-1 flex-col overflow-hidden p-0">
-          <div className="grid grid-cols-12 gap-2 border-b border-outline-variant bg-surface-container-low px-4 py-3 text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
+          {/* La cabecera de columnas solo tiene sentido con la grilla de 12:
+              en mobile cada línea se apila como card y rotula sus propios
+              campos, así que el encabezado sobra. */}
+          <div className="hidden grid-cols-12 gap-2 border-b border-outline-variant bg-surface-container-low px-4 py-3 text-label-md font-semibold uppercase tracking-wide text-on-surface-variant sm:grid">
             <div className="col-span-1">#</div>
             <div className="col-span-5">Producto</div>
             <div className="col-span-2 text-right">Cant.</div>
@@ -504,11 +507,13 @@ export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
               return (
                 <div
                   key={linea.id}
-                  className="group grid grid-cols-12 items-center gap-2 px-4 py-3 transition-colors hover:bg-surface-container-low"
+                  className="group flex flex-col gap-2 px-3 py-3 transition-colors hover:bg-surface-container-low sm:grid sm:grid-cols-12 sm:items-center sm:gap-2 sm:px-4"
                 >
-                  <div className="col-span-1 text-body-md text-on-surface-variant">{i + 1}</div>
-                  <div className="col-span-5">
-                    <p className="flex items-center gap-2 truncate text-label-lg font-medium text-on-surface">
+                  <div className="hidden text-body-md text-on-surface-variant sm:col-span-1 sm:block">
+                    {i + 1}
+                  </div>
+                  <div className="min-w-0 sm:col-span-5">
+                    <p className="flex flex-wrap items-center gap-2 text-label-lg font-medium text-on-surface">
                       {item?.nombre ?? linea.nombreLibre}
                       {linea.esLibre && <Badge variant="warning">Sobre pedido</Badge>}
                       {linea.esLibre && !linea.itemId && (
@@ -541,7 +546,10 @@ export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
                       </p>
                     )}
                   </div>
-                  <div className="col-span-2 flex justify-end">
+                  {/* En mobile cada campo lleva su rótulo al lado, porque no
+                      hay cabecera de columnas que lo explique. */}
+                  <div className="flex items-center justify-between gap-2 sm:col-span-2 sm:justify-end">
+                    <span className="text-label-md text-on-surface-variant sm:hidden">Cant.</span>
                     {esProducto ? (
                       <div className="flex items-center rounded border border-outline-variant bg-surface">
                         <button
@@ -580,19 +588,25 @@ export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
                       <span className="text-body-md text-on-surface-variant">1</span>
                     )}
                   </div>
-                  <div className="col-span-2 text-right">
+                  <div className="flex items-center justify-between gap-2 text-right sm:col-span-2 sm:block">
+                    <span className="text-label-md text-on-surface-variant sm:hidden">Precio</span>
                     <Input
                       aria-label="Precio unitario"
                       value={linea.precioUnitario}
+                      inputMode="decimal"
+                      className="h-10 w-32 text-right text-body-md sm:h-8 sm:w-full"
                       onChange={(e) => actualizarLinea(linea.id, { precioUnitario: e.target.value })}
-                      className="h-8 w-full text-right text-body-md"
                     />
                   </div>
-                  <div className="col-span-2 flex items-center justify-end gap-2 text-label-lg font-medium text-on-surface">
+                  <div className="flex items-center justify-between gap-2 text-label-lg font-medium text-on-surface sm:col-span-2 sm:justify-end">
+                    <span className="text-label-md font-normal text-on-surface-variant sm:hidden">Total</span>
                     {formatearMonto(lineaTotal, codigoMonedaBase)}
+                    {/* Sin hover en touch: el botón de borrar tiene que estar
+                        visible desde el vamos en mobile o la línea no se puede
+                        quitar. El fade por hover queda solo de `sm` para arriba. */}
                     <button
                       type="button"
-                      className="text-error opacity-0 transition-opacity group-hover:opacity-100"
+                      className="text-error transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
                       onClick={() => quitarLinea(linea.id)}
                       aria-label="Quitar"
                     >

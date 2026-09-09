@@ -90,11 +90,13 @@ export function IndicadoresPanel({ negocioId }: { negocioId: string }) {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-headline-lg font-light leading-tight text-on-surface">Dashboard</h1>
+        <h1 className="font-display text-headline-lg-mobile font-light leading-tight text-on-surface md:text-headline-lg">
+          Dashboard
+        </h1>
         <button
           type="button"
           onClick={() => setValoresVisibles((val) => !val)}
-          className="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-lg font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+          className="flex min-h-11 items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-label-lg font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface md:min-h-0"
         >
           <Icon name={valoresVisibles ? "visibility_off" : "visibility"} className="text-[18px]" />
           {valoresVisibles ? "Ocultar" : "Mostrar"}
@@ -136,7 +138,7 @@ export function IndicadoresPanel({ negocioId }: { negocioId: string }) {
               sumadas en el valor total.
             </p>
           )}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {data.saldosPorMoneda.map((s, i) => (
               <StatCard
                 key={s.codigo}
@@ -205,7 +207,7 @@ export function IndicadoresPanel({ negocioId }: { negocioId: string }) {
               <h2 className="text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
                 Resultado del período
               </h2>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {claves.map((clave) => (
                   <StatCard
                     key={clave}

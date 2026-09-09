@@ -17,7 +17,9 @@ export interface FormFieldProps {
  */
 export function FormField({ htmlFor, label, error, className, children }: FormFieldProps) {
   return (
-    <div className={cn("flex flex-col gap-1", className)}>
+    // `min-w-0`: como item de grid el default es `min-width:auto`, que deja
+    // que un control ancho estire la columna y desborde la fila en mobile.
+    <div className={cn("flex min-w-0 flex-col gap-1", className)}>
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
       {error && (

@@ -7,7 +7,7 @@ export default function CuentasPorCobrarPage() {
   const negocioActivoId = useNegocioActivoStore((state) => state.negocioActivoId);
 
   return (
-    <main className="flex flex-col gap-6 p-8">
+    <main className="flex flex-col gap-6 p-margin-mobile md:p-margin-desktop">
       <h1 className="text-xl font-semibold">Cuentas por cobrar</h1>
 
       {!negocioActivoId ? (
