@@ -1,5 +1,6 @@
 import { obtenerPerfil } from "@/actions/auth/obtener-perfil";
 import { EditarPerfilForm } from "@/components/editar-perfil-form";
+import { CambiarContrasenaForm } from "@/components/cambiar-contrasena-form";
 import { EliminarCuentaButton } from "@/components/eliminar-cuenta-button";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +12,6 @@ export default async function PerfilPage() {
     <main className="flex flex-col gap-10 p-margin-mobile md:p-margin-desktop">
       <div>
         <h1 className="text-xl font-semibold">Mi perfil</h1>
-        {result.ok && (
-          <p className="text-sm text-muted">{result.data.email}</p>
-        )}
       </div>
 
       {!result.ok && (
@@ -25,9 +23,11 @@ export default async function PerfilPage() {
       {result.ok && (
         <>
           <EditarPerfilForm
+            email={result.data.email}
             nombreActual={result.data.nombre}
             avatarUrlActual={result.data.avatarUrl}
           />
+          <CambiarContrasenaForm />
           <EliminarCuentaButton />
         </>
       )}

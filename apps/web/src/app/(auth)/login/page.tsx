@@ -51,6 +51,9 @@ export default function LoginPage() {
         )}
       </form>
       <Button asChild variant="link">
+        <a href="/recuperar-contrasena">¿Olvidaste tu contraseña?</a>
+      </Button>
+      <Button asChild variant="link">
         <a href="/registro">Crear cuenta</a>
       </Button>
     </main>

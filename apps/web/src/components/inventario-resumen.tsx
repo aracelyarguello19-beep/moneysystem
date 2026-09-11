@@ -24,6 +24,7 @@ export function InventarioResumen({
   valorInventario: string;
 }) {
   const alertas = items.filter((i) => Number(i.stockActual) <= UMBRAL_STOCK_BAJO);
+  const unidadesEnStock = items.reduce((total, i) => total.plus(i.stockActual), new Decimal(0));
 
   const margenes = items
     .filter((i) => i.costoCompra && Number(i.precioVenta) > 0)
@@ -33,7 +34,7 @@ export function InventarioResumen({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           icon={<Icon name="account_balance" />}
           tone="primary"
@@ -51,6 +52,12 @@ export function InventarioResumen({
           tone="neutral"
           label="Artículos activos"
           value={items.length.toString()}
+        />
+        <StatCard
+          icon={<Icon name="inventory_2" />}
+          tone="neutral"
+          label="Unidades en stock"
+          value={unidadesEnStock.toString()}
         />
         <StatCard
           icon={<Icon name="inventory" />}

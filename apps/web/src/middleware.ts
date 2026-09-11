@@ -11,11 +11,20 @@ export async function middleware(request: NextRequest) {
 
   const isAuthRoute =
     request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/registro");
+    request.nextUrl.pathname.startsWith("/registro") ||
+    request.nextUrl.pathname.startsWith("/recuperar-contrasena") ||
+    request.nextUrl.pathname.startsWith("/restablecer-contrasena");
   // "/" se agrega a la lista pública además de lo que documenta Dev Notes:
   // es la página de estado de Story 1.1 (AC2, "accesible sin autenticación").
   // El patrón original del Dev Notes no la incluía — de aplicarse literal,
   // esta story rompería el AC2 ya validado de 1.1.
+  //
+  // "/restablecer-contrasena" es pública aunque solo sirve con una sesión
+  // de recuperación activa: el enlace del email trae los tokens en el
+  // fragmento de la URL, que el servidor nunca ve, así que en el primer
+  // request (antes de que el cliente los procese) todavía no hay `user` —
+  // si no fuera pública, este middleware redirigiría a /login antes de que
+  // la página tuviera la chance de establecer la sesión.
   const isPublicRoute =
     request.nextUrl.pathname === "/" ||
     request.nextUrl.pathname.startsWith("/api/health") ||

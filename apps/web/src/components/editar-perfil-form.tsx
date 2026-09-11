@@ -21,9 +21,11 @@ const ImagenUpload = dynamic(
 );
 
 export function EditarPerfilForm({
+  email,
   nombreActual,
   avatarUrlActual,
 }: {
+  email: string;
   nombreActual: string | null;
   avatarUrlActual: string | null;
 }) {
@@ -65,6 +67,9 @@ export function EditarPerfilForm({
           />
         )}
       />
+      <FormField htmlFor="email" label="Email">
+        <Input id="email" type="email" className="w-full" value={email} disabled />
+      </FormField>
       <FormField htmlFor="nombre" label="Nombre" error={errors.nombre?.message}>
         <Input id="nombre" type="text" className="w-full" {...register("nombre")} />
       </FormField>
