@@ -8,14 +8,10 @@ import {
   assertCuentaFinancieraNoEsTarjeta,
   assertItemEsProducto,
   calcularCostoPromedioPonderado,
+  convertirAGuaranies,
 } from "@repo/domain";
 import { registrarCompraSchema } from "@repo/domain/schemas";
-import {
-  aplicarMovimientoCuenta,
-  aplicarMovimientoTarjeta,
-  resolverTasaCambioVigente,
-  withRlsContext,
-} from "@repo/database";
+import { aplicarMovimientoCuenta, aplicarMovimientoTarjeta, withRlsContext } from "@repo/database";
 import { getCurrentAccount } from "@/lib/auth";
 import { withErrorHandling } from "@/lib/server-action-wrapper";
 
@@ -26,13 +22,23 @@ import { withErrorHandling } from "@/lib/server-action-wrapper";
 // model de este proyecto, solo se documenta la forma de pago).
 //
 // `items` permite registrar una compra de varios productos a la vez (mismo
-// proveedor/fecha/forma de pago/cuenta): cada línea crea su propia fila de
-// `Compra` y actualiza el stock/costo promedio de su propio ítem — no hay
-// una tabla de línea de compra en el modelo (a diferencia de VentaItem), así
-// que "una compra con 3 productos" son 3 filas de `Compra` con el mismo
+// proveedor/fecha/forma de pago/cuenta), cada uno en su propia moneda: cada
+// línea crea su propia fila de `Compra` (con SU costo/moneda tal como se
+// pactó) y actualiza el stock/costo promedio de su propio ítem — no hay una
+// tabla de línea de compra en el modelo (a diferencia de VentaItem), así que
+// "una compra con 3 productos" son 3 filas de `Compra` con el mismo
 // proveedor/fecha/forma de pago, más UN solo movimiento de cuenta/tarjeta
-// por el total (no uno por línea, para no fragmentar el egreso real).
-// [Source: architecture/api-specification.md#Convención de Server Actions, Story 4.2 Completion Notes]
+// por el total EN GUARANÍES (no uno por línea, para no fragmentar el egreso
+// real de una cuenta que es siempre en moneda oficial).
+//
+// El costo promedio ponderado de cada ítem (Inventario) vive siempre en
+// Guaraníes — una línea en moneda extranjera se convierte con la
+// `cotizacion` cargada acá ANTES de mezclarla con el costo previo del ítem,
+// nunca se promedian números de monedas distintas sin convertir. Esa misma
+// `cotizacion` crea un snapshot nuevo de TasaCambio (Coding Standard "Tasa
+// de Cambio Inmutable") que pasa a ser la vigente del sistema para esa
+// moneda, igual que ya hace registrarVenta.
+// [Source: architecture/api-specification.md#Convención de Server Actions, Story 4.2/5.3 Completion Notes]
 export const registrarCompra = withErrorHandling(
   async (negocioId: string, input: unknown): Promise<Compra[]> => {
     const parsed = registrarCompraSchema.parse(input);
@@ -40,21 +46,38 @@ export const registrarCompra = withErrorHandling(
     if (!cuenta) throw new Error("No hay sesión activa");
 
     const compras = await withRlsContext(cuenta.id, negocioId, async (tx) => {
-      // Story 5.3, AC3/AC4 / Coding Standard "Tasa de Cambio Inmutable": el
-      // cliente nunca decide `tasaCambioId` — se resuelve acá, la vigente a
-      // `fecha`, y queda grabada de forma inmutable en cada línea. Se
-      // resuelve una sola vez porque todas las líneas comparten
-      // moneda/fecha (una sola transacción/factura de compra).
-      const moneda = await tx.moneda.findUniqueOrThrow({ where: { id: parsed.monedaId } });
-      const tasaCambio = moneda.esBase
-        ? null
-        : await resolverTasaCambioVigente(tx, parsed.monedaId, parsed.fecha);
-
       const creadas: Awaited<ReturnType<typeof tx.compra.create>>[] = [];
+      // Cachea la TasaCambio recién creada por moneda+cotización dentro de
+      // esta misma compra — el caso común es un solo proveedor y una sola
+      // cotización para todas las líneas en esa moneda extranjera, y esto
+      // evita insertar snapshots inmutables duplicados para el mismo valor.
+      const tasaCreadaPorClave = new Map<string, string>();
+      let totalGs = new Prisma.Decimal(0);
 
       for (const linea of parsed.items) {
         const item = await tx.item.findUniqueOrThrow({ where: { id: linea.itemId } });
         assertItemEsProducto({ tipo: item.tipo as Item["tipo"] });
+
+        const moneda = await tx.moneda.findUniqueOrThrow({ where: { id: linea.monedaId } });
+
+        let tasaCambioId: string | null = null;
+        if (!moneda.esBase) {
+          if (!linea.cotizacion || Number(linea.cotizacion) <= 0) {
+            throw new Error(
+              `La cotización es obligatoria para los productos en ${moneda.codigo} (moneda distinta a la oficial).`
+            );
+          }
+          const clave = `${linea.monedaId}:${linea.cotizacion}`;
+          let idCacheado = tasaCreadaPorClave.get(clave);
+          if (!idCacheado) {
+            const tasaCambio = await tx.tasaCambio.create({
+              data: { monedaId: linea.monedaId, tasa: linea.cotizacion, registradaPor: cuenta.id },
+            });
+            idCacheado = tasaCambio.id;
+            tasaCreadaPorClave.set(clave, idCacheado);
+          }
+          tasaCambioId = idCacheado;
+        }
 
         const nueva = await tx.compra.create({
           data: {
@@ -67,9 +90,15 @@ export const registrarCompra = withErrorHandling(
             proveedor: parsed.proveedor ?? null,
             formaPago: parsed.formaPago,
             cuentaFinancieraId: parsed.cuentaFinancieraId,
-            monedaId: parsed.monedaId,
-            tasaCambioId: tasaCambio?.id ?? null,
+            monedaId: linea.monedaId,
+            tasaCambioId,
           },
+        });
+
+        const costoUnitarioEnGs = convertirAGuaranies({
+          monto: linea.costoUnitario,
+          esMonedaBase: moneda.esBase,
+          tasa: moneda.esBase ? null : linea.cotizacion!,
         });
 
         // Costo promedio ponderado: se calcula con el stock/costo *previos*
@@ -81,7 +110,7 @@ export const registrarCompra = withErrorHandling(
           item.stockActual.toString(),
           item.costoCompra?.toString() ?? null,
           linea.cantidad,
-          linea.costoUnitario
+          costoUnitarioEnGs
         );
 
         await tx.item.update({
@@ -93,6 +122,7 @@ export const registrarCompra = withErrorHandling(
           },
         });
 
+        totalGs = totalGs.plus(new Prisma.Decimal(costoUnitarioEnGs).times(linea.cantidad));
         creadas.push(nueva);
       }
 
@@ -100,13 +130,7 @@ export const registrarCompra = withErrorHandling(
         const cuentaFinanciera = await tx.cuentaFinanciera.findUniqueOrThrow({
           where: { id: parsed.cuentaFinancieraId },
         });
-        const montoTotal = parsed.items
-          .reduce(
-            (acumulado, linea) =>
-              acumulado.plus(new Prisma.Decimal(linea.costoUnitario).times(linea.cantidad)),
-            new Prisma.Decimal(0)
-          )
-          .toString();
+        const montoTotal = totalGs.toString();
 
         if (parsed.formaPago === "TARJETA") {
           assertCuentaFinancieraEsTarjeta({ tipo: cuentaFinanciera.tipo as CuentaFinanciera["tipo"] });
@@ -135,6 +159,7 @@ export const registrarCompra = withErrorHandling(
     revalidatePath("/laboral/compras");
     revalidatePath("/laboral/indicadores");
     revalidatePath("/laboral/inventario");
+    revalidatePath("/laboral/caja");
 
     return compras.map((compra) => ({
       id: compra.id,

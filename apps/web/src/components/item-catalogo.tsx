@@ -294,7 +294,93 @@ export function ItemCatalogo({
         </p>
       )}
 
-      <div className="overflow-x-auto">
+      {/* Tarjetas apiladas — solo hasta `sm`: la tabla de acá abajo tiene 10
+          columnas con `min-w-[900px]`, así que en mobile "Editar"/"Eliminar"
+          (la última columna) quedaban fuera de pantalla, alcanzables solo
+          scrolleando horizontal sin ningún indicio de que hiciera falta.
+          Mismo criterio que gastos-lista.tsx/gasto-fijo-panel.tsx: en mobile
+          la lista se apila en tarjetas con los botones siempre a la vista. */}
+      <ul className="flex flex-col divide-y divide-outline-variant sm:hidden">
+        {filtrados.map((item) =>
+          editandoId === item.id ? (
+            <li key={item.id} className="bg-surface-container-low p-3">
+              <ItemEditarCampos
+                item={item}
+                negocioId={negocioId}
+                onCancelar={() => setEditandoId(null)}
+                onGuardado={() => {
+                  setEditandoId(null);
+                  onCambio();
+                }}
+              />
+            </li>
+          ) : (
+            <li key={item.id} className="flex flex-col gap-2 p-3">
+              <div className="flex items-center gap-3">
+                {item.imagenUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- URL pública externa de Supabase Storage
+                  <img src={item.imagenUrl} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
+                ) : (
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-surface-container-high text-on-surface-variant">
+                    <Icon name="inventory_2" className="text-[18px]" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-on-surface">{item.nombre}</p>
+                  {item.nroCalce && (
+                    <p className="text-label-md text-on-surface-variant">Nro {item.nroCalce}</p>
+                  )}
+                </div>
+                <Badge variant={estadoStock(item.stockActual).variant}>
+                  {estadoStock(item.stockActual).label}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-body-md">
+                <span className="text-on-surface-variant">
+                  Precio: <span className="text-on-surface">{formatearMonto(item.precioVenta, codigoMoneda(item.monedaId))}</span>
+                </span>
+                <span className="text-on-surface-variant">
+                  Stock: <span className="text-on-surface">{item.stockActual}</span>
+                </span>
+                <span className="text-on-surface-variant">
+                  Costo prom.:{" "}
+                  <span className="text-on-surface">
+                    {item.costoCompra ? formatearMonto(item.costoCompra, codigoMoneda(item.monedaId)) : "—"}
+                  </span>
+                </span>
+                <span className="text-on-surface-variant">
+                  Valor total:{" "}
+                  <span className="text-on-surface">
+                    {formatearMonto(valorTotal(item), codigoMoneda(item.monedaId))}
+                  </span>
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button type="button" variant="link" onClick={() => setEditandoId(item.id)}>
+                  Editar
+                </Button>
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={() => onEliminar(item)}
+                  className="text-danger"
+                >
+                  Eliminar
+                </Button>
+              </div>
+            </li>
+          )
+        )}
+        {filtrados.length === 0 && (
+          <li className="px-4 py-8 text-center text-body-md text-on-surface-variant">
+            {items.length === 0
+              ? "Todavía no tenés productos en el catálogo."
+              : "Ningún producto coincide con la búsqueda."}
+          </li>
+        )}
+      </ul>
+
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[900px] border-collapse text-left">
           <thead className="bg-surface-container">
             <tr>
@@ -433,7 +519,27 @@ export function ItemCatalogo({
   );
 }
 
-function ItemEditarFila({
+// Fila de edición en la tabla de escritorio — mismos campos que
+// `ItemEditarCampos`, envueltos en `<tr>/<td>` para calzar en el `<table>`.
+function ItemEditarFila(props: {
+  item: Item;
+  negocioId: string;
+  onCancelar: () => void;
+  onGuardado: () => void;
+}) {
+  return (
+    <tr className="bg-surface-container-low">
+      <td colSpan={10} className="p-3">
+        <ItemEditarCampos {...props} />
+      </td>
+    </tr>
+  );
+}
+
+// Campos de edición, compartidos entre la fila de tabla (desktop) y la
+// tarjeta apilada (mobile, `sm:hidden` en ItemCatalogo) — mismo formulario,
+// dos contenedores distintos.
+function ItemEditarCampos({
   item,
   negocioId,
   onCancelar,
@@ -476,64 +582,60 @@ function ItemEditarFila({
   }
 
   return (
-    <tr className="bg-surface-container-low">
-      <td colSpan={10} className="p-3">
-        <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
-          <FormField htmlFor={`editar-nombre-${item.id}`} label="Nombre" className="w-40">
-            <Input id={`editar-nombre-${item.id}`} value={nombre} onChange={(e) => setNombre(e.target.value)} />
-          </FormField>
-          <FormField htmlFor={`editar-proveedor-${item.id}`} label="Proveedor" className="w-32">
-            <Input
-              id={`editar-proveedor-${item.id}`}
-              value={proveedor}
-              onChange={(e) => setProveedor(e.target.value)}
-            />
-          </FormField>
-          <FormField htmlFor={`editar-nro-calce-${item.id}`} label="Nro de calce" className="w-24">
-            <Input
-              id={`editar-nro-calce-${item.id}`}
-              value={nroCalce}
-              onChange={(e) => setNroCalce(e.target.value)}
-            />
-          </FormField>
-          <FormField htmlFor={`editar-costo-${item.id}`} label="Costo" className="w-24">
-            <Input
-              id={`editar-costo-${item.id}`}
-              value={costoCompra}
-              onChange={(e) => setCostoCompra(e.target.value)}
-              inputMode="decimal"
-            />
-          </FormField>
-          <FormField htmlFor={`editar-precio-${item.id}`} label="Precio de venta" className="w-24">
-            <Input
-              id={`editar-precio-${item.id}`}
-              value={precioVenta}
-              onChange={(e) => setPrecioVenta(e.target.value)}
-              inputMode="decimal"
-            />
-          </FormField>
-          <FormField htmlFor={`editar-stock-${item.id}`} label="Stock" className="w-20">
-            <Input
-              id={`editar-stock-${item.id}`}
-              value={stockActual}
-              onChange={(e) => setStockActual(e.target.value)}
-              inputMode="decimal"
-            />
-          </FormField>
-          <ImagenItemUpload value={imagenUrl} onChange={setImagenUrl} />
-          <Button type="submit" size="sm" disabled={isSubmitting}>
-            Guardar
-          </Button>
-          <Button type="button" variant="link" onClick={onCancelar}>
-            Cancelar
-          </Button>
-          {error && (
-            <p role="alert" className="w-full text-sm text-danger">
-              {error}
-            </p>
-          )}
-        </form>
-      </td>
-    </tr>
+    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
+      <FormField htmlFor={`editar-nombre-${item.id}`} label="Nombre" className="w-40">
+        <Input id={`editar-nombre-${item.id}`} value={nombre} onChange={(e) => setNombre(e.target.value)} />
+      </FormField>
+      <FormField htmlFor={`editar-proveedor-${item.id}`} label="Proveedor" className="w-32">
+        <Input
+          id={`editar-proveedor-${item.id}`}
+          value={proveedor}
+          onChange={(e) => setProveedor(e.target.value)}
+        />
+      </FormField>
+      <FormField htmlFor={`editar-nro-calce-${item.id}`} label="Nro de calce" className="w-24">
+        <Input
+          id={`editar-nro-calce-${item.id}`}
+          value={nroCalce}
+          onChange={(e) => setNroCalce(e.target.value)}
+        />
+      </FormField>
+      <FormField htmlFor={`editar-costo-${item.id}`} label="Costo" className="w-24">
+        <Input
+          id={`editar-costo-${item.id}`}
+          value={costoCompra}
+          onChange={(e) => setCostoCompra(e.target.value)}
+          inputMode="decimal"
+        />
+      </FormField>
+      <FormField htmlFor={`editar-precio-${item.id}`} label="Precio de venta" className="w-24">
+        <Input
+          id={`editar-precio-${item.id}`}
+          value={precioVenta}
+          onChange={(e) => setPrecioVenta(e.target.value)}
+          inputMode="decimal"
+        />
+      </FormField>
+      <FormField htmlFor={`editar-stock-${item.id}`} label="Stock" className="w-20">
+        <Input
+          id={`editar-stock-${item.id}`}
+          value={stockActual}
+          onChange={(e) => setStockActual(e.target.value)}
+          inputMode="decimal"
+        />
+      </FormField>
+      <ImagenItemUpload value={imagenUrl} onChange={setImagenUrl} />
+      <Button type="submit" size="sm" disabled={isSubmitting}>
+        Guardar
+      </Button>
+      <Button type="button" variant="link" onClick={onCancelar}>
+        Cancelar
+      </Button>
+      {error && (
+        <p role="alert" className="w-full text-sm text-danger">
+          {error}
+        </p>
+      )}
+    </form>
   );
 }

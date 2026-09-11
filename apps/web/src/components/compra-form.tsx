@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Decimal from "decimal.js";
 import type { Compra, Item, Moneda } from "@repo/domain";
+import { convertirAGuaranies } from "@repo/domain";
 import { registrarCompra } from "@/actions/inventario/registrar-compra";
 import { crearItem } from "@/actions/inventario/crear-item";
 import { listarItems } from "@/actions/inventario/listar-items";
 import { listarCompras } from "@/actions/inventario/listar-compras";
 import { listarMonedas } from "@/actions/catalogos/listar-monedas";
+import { listarTasasCambio, type MonedaConTasa } from "@/actions/catalogos/listar-tasas-cambio";
 import { CuentaFinancieraSelect } from "@/components/cuenta-financiera-select";
 import { ProductoBuscador, etiquetaProducto } from "@/components/producto-buscador";
 import { emitirInventarioCambiado, useInventarioCambiado } from "@/lib/inventario-events";
@@ -17,9 +19,14 @@ import { FormField } from "@/components/ui/form-field";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { formatearMonto } from "@/lib/moneda";
+import { claseIconoMoneda, formatearMonto } from "@/lib/moneda";
 
 const FORMAS_PAGO: Compra["formaPago"][] = ["EFECTIVO", "BANCO", "TARJETA", "CREDITO_PROVEEDOR"];
+
+// Orden fijo de los botones de moneda — mismos 3 códigos que ya reconoce
+// `apps/web/src/lib/moneda.ts` (PYG/BRL/USD → Gs/R$/USD). Solo se muestra el
+// botón de una moneda si el negocio la tiene cargada en su catálogo.
+const CODIGOS_MONEDA_BOTON = ["PYG", "BRL", "USD"] as const;
 
 interface VarianteCompraForm {
   nroCalce: string;
@@ -34,6 +41,8 @@ interface LineaCompraForm {
   itemId: string;
   costoUnitario: string;
   cantidad: string;
+  monedaId: string;
+  cotizacion: string; // "" cuando `monedaId` es la moneda oficial
 }
 
 // Carga diferida: `ImagenItemUpload` trae el cliente completo de
@@ -59,23 +68,32 @@ type CompraListada = Compra & { itemNombre: string; itemNroCalce: string | null 
 // todas juntas con un mismo proveedor/fecha/forma de pago/cuenta — cubre el
 // caso de comprarle varios productos distintos al mismo proveedor de una
 // sola vez (ver registrar-compra.ts, que crea una fila de Compra por línea).
+//
+// Cada línea tiene SU PROPIA moneda (botones Gs/R$/USD): un producto puede
+// venir de un proveedor que cobra en dólares y otro en guaraníes dentro de
+// la misma compra. El subtotal de cada línea se muestra en su propia
+// moneda; el total de la compra siempre se muestra convertido a Guaraníes
+// (con la cotización cargada en cada línea extranjera). Esa cotización
+// pasa a ser la vigente del sistema para esa moneda (ver registrar-compra.ts).
 export function CompraForm({ negocioId }: { negocioId: string }) {
   const [productos, setProductos] = useState<Item[]>([]);
   const [monedas, setMonedas] = useState<Moneda[]>([]);
+  const [tasas, setTasas] = useState<MonedaConTasa[]>([]);
   const [historial, setHistorial] = useState<CompraListada[]>([]);
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [lineas, setLineas] = useState<LineaCompraForm[]>([]);
   const [stagingItemId, setStagingItemId] = useState("");
+  const [stagingMonedaId, setStagingMonedaId] = useState("");
   const [stagingCosto, setStagingCosto] = useState("");
   const [stagingCantidad, setStagingCantidad] = useState("1");
+  const [stagingCotizacion, setStagingCotizacion] = useState("");
 
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [proveedor, setProveedor] = useState("");
   const [formaPago, setFormaPago] = useState<Compra["formaPago"]>("EFECTIVO");
   const [cuentaFinancieraId, setCuentaFinancieraId] = useState("");
-  const [monedaId, setMonedaId] = useState("");
 
   const [creandoProducto, setCreandoProducto] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState("");
@@ -97,25 +115,55 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
     setVariantes((actuales) => (actuales.length > 1 ? actuales.filter((_, i) => i !== index) : actuales));
   }
 
-  function onSeleccionarStaging(itemId: string) {
+  const monedaPorId = (id: string) => monedas.find((m) => m.id === id);
+  const monedaBase = monedas.find((m) => m.esBase);
+  const monedasBoton = CODIGOS_MONEDA_BOTON.map((codigo) => monedas.find((m) => m.codigo === codigo)).filter(
+    (m): m is Moneda => !!m
+  );
+
+  function vigenteDe(monedaId: string): string {
+    return tasas.find((t) => t.moneda.id === monedaId)?.tasaVigente?.tasa ?? "";
+  }
+
+  function onSeleccionarMonedaStaging(m: Moneda) {
+    setStagingMonedaId(m.id);
+    setStagingCotizacion(m.esBase ? "" : vigenteDe(m.id));
+  }
+
+  function onSeleccionarStagingProducto(itemId: string) {
     setStagingItemId(itemId);
     const item = productos.find((p) => p.id === itemId);
-    if (item?.costoCompra && !stagingCosto) {
+    const esBase = monedaPorId(stagingMonedaId)?.esBase ?? true;
+    if (item?.costoCompra && !stagingCosto && esBase) {
       setStagingCosto(item.costoCompra);
     }
   }
 
-  const listoParaAgregar = !!stagingItemId && !!stagingCosto && Number(stagingCantidad) > 0;
+  const stagingEsBase = monedaPorId(stagingMonedaId)?.esBase ?? true;
+  const listoParaAgregar =
+    !!stagingItemId &&
+    !!stagingCosto &&
+    Number(stagingCantidad) > 0 &&
+    (stagingEsBase || (!!stagingCotizacion && Number(stagingCotizacion) > 0));
 
   function agregarLinea() {
     if (!listoParaAgregar) return;
     setLineas((actuales) => [
       ...actuales,
-      { id: crypto.randomUUID(), itemId: stagingItemId, costoUnitario: stagingCosto, cantidad: stagingCantidad },
+      {
+        id: crypto.randomUUID(),
+        itemId: stagingItemId,
+        costoUnitario: stagingCosto,
+        cantidad: stagingCantidad,
+        monedaId: stagingMonedaId,
+        cotizacion: stagingEsBase ? "" : stagingCotizacion,
+      },
     ]);
     setStagingItemId("");
     setStagingCosto("");
     setStagingCantidad("1");
+    // La moneda/cotización quedan tal cual: agregar varias líneas seguidas
+    // del mismo proveedor (misma moneda, misma cotización) es el caso común.
   }
 
   function actualizarLinea(id: string, cambios: Partial<LineaCompraForm>) {
@@ -130,21 +178,40 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
     return productos.find((p) => p.id === itemId);
   }
 
+  function subtotalLinea(l: Pick<LineaCompraForm, "costoUnitario" | "cantidad">): Decimal {
+    return new Decimal(l.costoUnitario || "0").times(l.cantidad || "0");
+  }
+
+  function subtotalLineaEnGs(l: LineaCompraForm): Decimal {
+    const moneda = monedaPorId(l.monedaId);
+    const esBase = moneda?.esBase ?? true;
+    return new Decimal(
+      convertirAGuaranies({
+        monto: subtotalLinea(l).toString(),
+        esMonedaBase: esBase,
+        tasa: esBase ? null : l.cotizacion || "0",
+      })
+    );
+  }
+
   const cargar = useCallback(async () => {
-    const [itemsResult, monedasResult, historialResult] = await Promise.all([
+    const [itemsResult, monedasResult, historialResult, tasasResult] = await Promise.all([
       listarItems(negocioId),
       listarMonedas(negocioId),
       listarCompras(negocioId),
+      listarTasasCambio(negocioId),
     ]);
     if (itemsResult.ok) {
       const soloProductos = itemsResult.data.filter((i) => i.tipo === "PRODUCTO");
       setProductos(soloProductos);
     }
     if (monedasResult.ok) {
-      setMonedas(monedasResult.data.filter((m) => m.activa));
-      setMonedaId((actual) => actual || monedasResult.data.find((m) => m.esBase)?.id || "");
+      const activas = monedasResult.data.filter((m) => m.activa);
+      setMonedas(activas);
+      setStagingMonedaId((actual) => actual || activas.find((m) => m.esBase)?.id || "");
     }
     if (historialResult.ok) setHistorial(historialResult.data);
+    if (tasasResult.ok) setTasas(tasasResult.data);
   }, [negocioId]);
 
   useEffect(() => {
@@ -154,11 +221,12 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
   useInventarioCambiado(cargar);
 
   // Cada variante (nro de calce) declarada crea su propio Item, igual que en
-  // Inventario (ver item-catalogo.tsx) — todas arrancan con stock 0. En vez
-  // de pedir acá la cantidad de cada variante, cada una queda agregada a la
-  // lista de la compra con su cantidad vacía: se completa como cualquier
-  // otra línea (un solo lugar para cargar cantidades, no dos).
+  // Inventario (ver item-catalogo.tsx) — todas arrancan con stock 0 y en la
+  // moneda oficial. En vez de pedir acá la cantidad de cada variante, cada
+  // una queda agregada a la lista de la compra con su cantidad vacía: se
+  // completa como cualquier otra línea (un solo lugar para cargar cantidades).
   async function onCrearProducto() {
+    if (!monedaBase) return;
     setNuevoMensaje(null);
     setCreandoEnProgreso(true);
     const nuevasLineas: LineaCompraForm[] = [];
@@ -167,7 +235,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
         tipo: "PRODUCTO",
         nombre: nuevoNombre,
         precioVenta: "0",
-        monedaId,
+        monedaId: monedaBase.id,
         costoCompra: nuevoCostoUnitario || "0",
         stockActual: "0",
         nroCalce: variante.nroCalce.trim() || undefined,
@@ -188,6 +256,8 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
         itemId: result.data.id,
         costoUnitario: nuevoCostoUnitario || "0",
         cantidad: "",
+        monedaId: monedaBase.id,
+        cotizacion: "",
       });
     }
     setCreandoEnProgreso(false);
@@ -213,6 +283,10 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
       setServerMessage("Completá el costo y la cantidad de todos los productos de la lista.");
       return;
     }
+    if (lineas.some((l) => !(monedaPorId(l.monedaId)?.esBase ?? true) && Number(l.cotizacion) <= 0)) {
+      setServerMessage("Cargá la cotización de hoy de todos los productos en moneda extranjera.");
+      return;
+    }
 
     setIsSubmitting(true);
     const result = await registrarCompra(negocioId, {
@@ -220,12 +294,13 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
         itemId: l.itemId,
         costoUnitario: l.costoUnitario,
         cantidad: l.cantidad,
+        monedaId: l.monedaId,
+        cotizacion: l.cotizacion || undefined,
       })),
       fecha,
       proveedor: proveedor || undefined,
       formaPago,
       cuentaFinancieraId: formaPago === "CREDITO_PROVEEDOR" ? null : cuentaFinancieraId,
-      monedaId,
     });
 
     setIsSubmitting(false);
@@ -239,12 +314,22 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
     emitirInventarioCambiado();
   }
 
-  const codigoMoneda = (monedaId: string) => monedas.find((m) => m.id === monedaId)?.codigo;
+  const total = lineas.reduce((acumulado, l) => acumulado.plus(subtotalLineaEnGs(l)), new Decimal(0));
 
-  const total = lineas.reduce(
-    (acumulado, l) => acumulado.plus(new Decimal(l.costoUnitario || "0").times(l.cantidad || "0")),
-    new Decimal(0)
-  );
+  // Un subtotal por cada moneda distinta usada en la lista (agrupa las
+  // líneas que comparten moneda) — se muestra arriba del total en
+  // Guaraníes, en la moneda en la que se cargó el costo de esas líneas, con
+  // la cantidad total de unidades de ese grupo.
+  const subtotalesPorMoneda = Array.from(
+    lineas.reduce((grupos, l) => {
+      const actual = grupos.get(l.monedaId) ?? { subtotal: new Decimal(0), cantidad: new Decimal(0) };
+      grupos.set(l.monedaId, {
+        subtotal: actual.subtotal.plus(subtotalLinea(l)),
+        cantidad: actual.cantidad.plus(l.cantidad || "0"),
+      });
+      return grupos;
+    }, new Map<string, { subtotal: Decimal; cantidad: Decimal }>())
+  ).map(([monedaId, valores]) => ({ moneda: monedaPorId(monedaId), ...valores }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -276,7 +361,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
               onChange={(e) => setNuevoNombre(e.target.value)}
             />
           </FormField>
-          <FormField htmlFor="nuevo-costo-compra" label="Costo unitario">
+          <FormField htmlFor="nuevo-costo-compra" label={`Costo unitario (${monedaBase?.codigo ?? ""})`}>
             <Input
               id="nuevo-costo-compra"
               value={nuevoCostoUnitario}
@@ -361,47 +446,85 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
         {/* Agregar producto a la lista — mismo criterio que "venta libre" en
             RegistrarVentaForm: se completan los campos de la línea y un
             botón "Agregar" la suma al carrito, en vez de un <select> con
-            submit directo. */}
-        <div className="grid grid-cols-1 items-end gap-3 rounded border border-outline-variant p-3 sm:grid-cols-2 lg:grid-cols-4">
-          <FormField htmlFor="item-compra" label="Producto" className="lg:col-span-2">
+            submit directo. Los botones de moneda eligen en qué moneda está
+            el costo unitario de ESTE producto — no toda la compra. */}
+        <div className="flex flex-col gap-3 rounded border border-outline-variant p-3">
+          <FormField htmlFor="item-compra" label="Producto">
             <ProductoBuscador
               id="item-compra"
               productos={productos}
               value={stagingItemId}
-              onChange={onSeleccionarStaging}
+              onChange={onSeleccionarStagingProducto}
             />
           </FormField>
-          <FormField htmlFor="costo-unitario-staging" label="Costo unitario">
-            <Input
-              id="costo-unitario-staging"
-              value={stagingCosto}
-              onChange={(e) => setStagingCosto(e.target.value)}
-              inputMode="decimal"
-              placeholder="0"
-            />
-          </FormField>
-          <FormField htmlFor="cantidad-staging" label="Cantidad">
-            <Input
-              id="cantidad-staging"
-              value={stagingCantidad}
-              onChange={(e) => setStagingCantidad(e.target.value)}
-              inputMode="numeric"
-            />
-          </FormField>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!listoParaAgregar}
-            onClick={agregarLinea}
-            className="w-fit gap-1 sm:col-span-2 lg:col-span-4"
-          >
-            <Icon name="add" className="text-[18px]" />
-            Agregar a la lista
-          </Button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-label-md text-on-surface-variant">Moneda del costo:</span>
+            {monedasBoton.map((m) => (
+              <Button
+                key={m.id}
+                type="button"
+                size="sm"
+                variant={stagingMonedaId === m.id ? "primary" : "outline"}
+                onClick={() => onSeleccionarMonedaStaging(m)}
+              >
+                {m.codigo === "PYG" ? "Gs" : m.codigo === "BRL" ? "R$" : "U$S"}
+              </Button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <FormField
+              htmlFor="costo-unitario-staging"
+              label={`Costo unitario${monedaPorId(stagingMonedaId) ? ` (${monedaPorId(stagingMonedaId)!.codigo})` : ""}`}
+            >
+              <Input
+                id="costo-unitario-staging"
+                value={stagingCosto}
+                onChange={(e) => setStagingCosto(e.target.value)}
+                inputMode="decimal"
+                placeholder="0"
+              />
+            </FormField>
+            {!stagingEsBase && (
+              <FormField
+                htmlFor="cotizacion-staging"
+                label={`Cotización de hoy (1 ${monedaPorId(stagingMonedaId)?.codigo} en ${monedaBase?.codigo ?? "Gs"})`}
+              >
+                <Input
+                  id="cotizacion-staging"
+                  value={stagingCotizacion}
+                  onChange={(e) => setStagingCotizacion(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </FormField>
+            )}
+            <FormField htmlFor="cantidad-staging" label="Cantidad">
+              <Input
+                id="cantidad-staging"
+                value={stagingCantidad}
+                onChange={(e) => setStagingCantidad(e.target.value)}
+                inputMode="numeric"
+              />
+            </FormField>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!listoParaAgregar}
+              onClick={agregarLinea}
+              className="w-fit gap-1"
+            >
+              <Icon name="add" className="text-[18px]" />
+              Agregar a la lista
+            </Button>
+          </div>
         </div>
 
         {/* Lista/carrito de la compra — una o más líneas, todas registradas
-            juntas con el mismo proveedor/fecha/forma de pago/cuenta. */}
+            juntas con el mismo proveedor/fecha/forma de pago/cuenta. Cada
+            línea conserva la moneda con la que se agregó; el subtotal se
+            muestra en esa moneda y el total de abajo, convertido a Gs. */}
         <div className="overflow-hidden rounded border border-outline-variant">
           {lineas.length === 0 ? (
             <p className="px-4 py-6 text-center text-body-md text-on-surface-variant">
@@ -411,7 +534,8 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
             <div className="flex flex-col divide-y divide-outline-variant">
               {lineas.map((linea) => {
                 const item = itemPorId(linea.itemId);
-                const subtotal = new Decimal(linea.costoUnitario || "0").times(linea.cantidad || "0");
+                const moneda = monedaPorId(linea.monedaId);
+                const subtotal = subtotalLinea(linea);
                 return (
                   <div
                     key={linea.id}
@@ -421,8 +545,13 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
                       <p className="text-label-lg font-medium text-on-surface">
                         {item ? etiquetaProducto(item) : "Producto"}
                       </p>
+                      <p className="text-label-md text-on-surface-variant">{moneda?.codigo ?? "—"}</p>
                     </div>
-                    <FormField htmlFor={`linea-costo-${linea.id}`} label="Costo unitario" className="w-28">
+                    <FormField
+                      htmlFor={`linea-costo-${linea.id}`}
+                      label={`Costo unitario${moneda ? ` (${moneda.codigo})` : ""}`}
+                      className="w-28"
+                    >
                       <Input
                         id={`linea-costo-${linea.id}`}
                         value={linea.costoUnitario}
@@ -440,7 +569,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
                       />
                     </FormField>
                     <div className="w-28 text-right text-label-lg font-medium text-on-surface">
-                      {formatearMonto(subtotal.toString(), codigoMoneda(monedaId))}
+                      {formatearMonto(subtotal.toString(), moneda?.codigo)}
                     </div>
                     <Button
                       type="button"
@@ -454,13 +583,26 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
                   </div>
                 );
               })}
-              <div className="flex items-center justify-between bg-surface-container-low px-4 py-3">
-                <span className="text-label-lg font-semibold text-on-surface">
-                  Total ({lineas.length} {lineas.length === 1 ? "producto" : "productos"})
-                </span>
-                <span className="text-headline-sm font-bold text-on-surface">
-                  {formatearMonto(total.toString(), codigoMoneda(monedaId))}
-                </span>
+              <div className="flex flex-col gap-1 bg-surface-container-low px-4 py-3">
+                {subtotalesPorMoneda.map(({ moneda, subtotal, cantidad }, indice) => (
+                  <div
+                    key={moneda?.id ?? "sin-moneda"}
+                    className={`flex items-center justify-between text-body-md font-medium ${claseIconoMoneda(moneda?.codigo, indice)}`}
+                  >
+                    <span>
+                      Subtotal {moneda?.codigo} ({cantidad.toString()} {cantidad.equals(1) ? "unidad" : "unidades"})
+                    </span>
+                    <span>{formatearMonto(subtotal.toString(), moneda?.codigo)}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between">
+                  <span className="text-label-lg font-semibold text-on-surface">
+                    Total ({lineas.length} {lineas.length === 1 ? "producto" : "productos"})
+                  </span>
+                  <span className="text-headline-sm font-bold text-on-surface">
+                    {formatearMonto(total.toString(), monedaBase?.codigo)}
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -484,20 +626,6 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
               value={proveedor}
               onChange={(e) => setProveedor(e.target.value)}
             />
-          </FormField>
-          <FormField htmlFor="moneda-compra" label="Moneda">
-            <Select
-              id="moneda-compra"
-              value={monedaId}
-              onChange={(e) => setMonedaId(e.target.value)}
-              required
-            >
-              {monedas.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.codigo}
-                </option>
-              ))}
-            </Select>
           </FormField>
           <FormField htmlFor="forma-pago" label="Forma de pago">
             <Select
@@ -556,7 +684,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
                   <td className="px-4 py-3 text-body-md text-on-surface-variant">{c.itemNroCalce ?? "—"}</td>
                   <td className="px-4 py-3 text-right text-body-md text-on-surface">{c.cantidad}</td>
                   <td className="px-4 py-3 text-right text-body-md text-on-surface-variant">
-                    {formatearMonto(c.costoUnitario, codigoMoneda(c.monedaId))}
+                    {formatearMonto(c.costoUnitario, monedaPorId(c.monedaId)?.codigo)}
                   </td>
                   <td className="px-4 py-3 text-body-md text-on-surface-variant">{c.proveedor ?? "—"}</td>
                   <td className="px-4 py-3 text-body-md text-on-surface-variant">{c.formaPago}</td>

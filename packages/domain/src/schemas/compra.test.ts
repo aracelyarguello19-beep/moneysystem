@@ -7,9 +7,8 @@ const monedaId = "22222222-2222-2222-2222-222222222222";
 const cuentaFinancieraId = "33333333-3333-3333-3333-333333333333";
 
 const base = {
-  items: [{ itemId, costoUnitario: "10.00", cantidad: "5" }],
+  items: [{ itemId, costoUnitario: "10.00", cantidad: "5", monedaId }],
   fecha: "2026-09-01",
-  monedaId,
 };
 
 describe("registrarCompraSchema", () => {
@@ -34,7 +33,7 @@ describe("registrarCompraSchema", () => {
   it("rechaza cantidad cero o negativa en una línea", () => {
     const result = registrarCompraSchema.safeParse({
       ...base,
-      items: [{ itemId, costoUnitario: "10.00", cantidad: "0" }],
+      items: [{ itemId, costoUnitario: "10.00", cantidad: "0", monedaId }],
       formaPago: "EFECTIVO",
       cuentaFinancieraId,
     });
@@ -69,12 +68,12 @@ describe("registrarCompraSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("acepta varios productos en una sola compra", () => {
+  it("acepta varios productos en una sola compra, cada uno con su propia moneda y cotización", () => {
     const result = registrarCompraSchema.safeParse({
       ...base,
       items: [
-        { itemId, costoUnitario: "10.00", cantidad: "5" },
-        { itemId: otroItemId, costoUnitario: "20.00", cantidad: "2" },
+        { itemId, costoUnitario: "10.00", cantidad: "5", monedaId },
+        { itemId: otroItemId, costoUnitario: "20.00", cantidad: "2", monedaId: cuentaFinancieraId, cotizacion: "7300" },
       ],
       formaPago: "EFECTIVO",
       cuentaFinancieraId,
