@@ -5,6 +5,7 @@ import type { Item, Moneda } from "@repo/domain";
 import { calcularGananciaProducto } from "@repo/domain";
 import { crearItem } from "@/actions/inventario/crear-item";
 import { editarItem } from "@/actions/inventario/editar-item";
+import { eliminarItem } from "@/actions/inventario/eliminar-item";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,15 @@ import { formatearMonto } from "@/lib/moneda";
 
 const UMBRAL_STOCK_BAJO = 5;
 
+interface VarianteForm {
+  nroCalce: string;
+  stockActual: string;
+}
+
+function nuevaVarianteVacia(): VarianteForm {
+  return { nroCalce: "", stockActual: "" };
+}
+
 function estadoStock(stockActual: string): { label: string; variant: "success" | "warning" | "danger" } {
   const stock = Number(stockActual);
   if (stock <= 0) return { label: "Sin stock", variant: "danger" };
@@ -38,11 +48,14 @@ function valorTotal(item: Pick<Item, "stockActual" | "costoCompra">): string {
 
 // Catálogo de Inventario — sesión "Productos" › Inventario: stock y
 // valorización combinados por producto (cada compra registrada en la sesión
-// "Compras" actualiza el stock y el costo promedio ponderado de acá, ver
-// registrar-compra.ts). "Agregar producto" solo pide identidad de catálogo
-// (nombre/proveedor/nro de calce/foto) — precio, costo y stock inicial
-// arrancan en 0 a propósito: se cargan comprando, nunca acá, para no
-// contarlos dos veces (mismo criterio que "+ Nuevo producto" en Compras).
+// "Compras" también actualiza el stock y el costo promedio ponderado de acá,
+// ver registrar-compra.ts). "Agregar producto" pide costo/precio/stock
+// inicial directo acá — cada variante (nro de calce) declarada genera su
+// propio Item con el mismo nombre/proveedor/costo/precio pero su stock
+// propio (ver comentario en Item, packages/domain/src/item.ts). Si después
+// se registra una compra sobre alguno de estos ítems, el costo se recalcula
+// como promedio ponderado contra el costo cargado acá — no se "cuenta dos
+// veces", se combina.
 // [Source: architecture/frontend-architecture.md#Component Organization]
 // `items`/`monedas` vienen ya cargados de InventarioPage (una sola
 // transacción para toda la página, ver obtener-inventario.ts) — este
@@ -69,39 +82,70 @@ export function ItemCatalogo({
 
   const [nombre, setNombre] = useState("");
   const [proveedor, setProveedor] = useState("");
-  const [nroCalce, setNroCalce] = useState("");
+  const [costoCompra, setCostoCompra] = useState("");
+  const [precioVenta, setPrecioVenta] = useState("");
+  const [variantes, setVariantes] = useState<VarianteForm[]>([nuevaVarianteVacia()]);
   const [imagenUrl, setImagenUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  function actualizarVariante(index: number, campo: keyof VarianteForm, valor: string) {
+    setVariantes((actuales) => actuales.map((v, i) => (i === index ? { ...v, [campo]: valor } : v)));
+  }
+
+  function agregarVariante() {
+    setVariantes((actuales) => [...actuales, nuevaVarianteVacia()]);
+  }
+
+  function quitarVariante(index: number) {
+    setVariantes((actuales) => (actuales.length > 1 ? actuales.filter((_, i) => i !== index) : actuales));
+  }
+
+  // Cada fila de `variantes` (nro de calce + stock propio) crea un Item
+  // aparte con el mismo nombre/proveedor/costo/precio — un producto sin
+  // variantes declaradas es, en los datos, un único Item con `nroCalce: null`
+  // (fila 0 sin calce cargado).
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setServerMessage(null);
     setIsSubmitting(true);
 
     const monedaId = monedas.find((m) => m.esBase)?.id ?? monedas[0]?.id ?? "";
-    const result = await crearItem(negocioId, {
-      tipo: "PRODUCTO",
-      nombre,
-      precioVenta: "0",
-      monedaId,
-      // Arranca sin costo ni stock: los carga "Registrar compra" en la
-      // sesión Compras, nunca el alta de catálogo.
-      costoCompra: "0",
-      stockActual: "0",
-      imagenUrl: imagenUrl ?? undefined,
-      proveedor: proveedor.trim() || undefined,
-      nroCalce: nroCalce.trim() || undefined,
-    });
+    for (const variante of variantes) {
+      const result = await crearItem(negocioId, {
+        tipo: "PRODUCTO",
+        nombre,
+        precioVenta: precioVenta || "0",
+        monedaId,
+        costoCompra: costoCompra || "0",
+        stockActual: variante.stockActual || "0",
+        imagenUrl: imagenUrl ?? undefined,
+        proveedor: proveedor.trim() || undefined,
+        nroCalce: variante.nroCalce.trim() || undefined,
+      });
+      if (!result.ok) {
+        setServerMessage(result.error.message);
+        setIsSubmitting(false);
+        return;
+      }
+    }
     setIsSubmitting(false);
+    setNombre("");
+    setProveedor("");
+    setCostoCompra("");
+    setPrecioVenta("");
+    setVariantes([nuevaVarianteVacia()]);
+    setImagenUrl(null);
+    setCreandoAbierto(false);
+    onCambio();
+  }
+
+  async function onEliminar(item: Item) {
+    if (!window.confirm(`¿Eliminar "${item.nombre}"? Esta acción no se puede deshacer.`)) return;
+    const result = await eliminarItem(item.id, negocioId);
     if (!result.ok) {
       setServerMessage(result.error.message);
       return;
     }
-    setNombre("");
-    setProveedor("");
-    setNroCalce("");
-    setImagenUrl(null);
-    setCreandoAbierto(false);
     onCambio();
   }
 
@@ -173,10 +217,66 @@ export function ItemCatalogo({
           <FormField htmlFor="proveedor-item" label="Proveedor (opcional)">
             <Input id="proveedor-item" value={proveedor} onChange={(e) => setProveedor(e.target.value)} />
           </FormField>
-          <FormField htmlFor="nro-calce-item" label="Nro de calce (opcional)">
-            <Input id="nro-calce-item" value={nroCalce} onChange={(e) => setNroCalce(e.target.value)} />
+          <FormField htmlFor="costo-item" label="Costo del producto">
+            <Input
+              id="costo-item"
+              value={costoCompra}
+              onChange={(e) => setCostoCompra(e.target.value)}
+              inputMode="decimal"
+              placeholder="0"
+            />
+          </FormField>
+          <FormField htmlFor="precio-item" label="Precio de venta">
+            <Input
+              id="precio-item"
+              value={precioVenta}
+              onChange={(e) => setPrecioVenta(e.target.value)}
+              inputMode="decimal"
+              placeholder="0"
+            />
           </FormField>
           <ImagenItemUpload value={imagenUrl} onChange={setImagenUrl} />
+
+          <div className="flex flex-col gap-2 sm:col-span-2 lg:col-span-3">
+            <p className="text-label-md font-semibold text-on-surface-variant">
+              Variantes (nro de calce y stock)
+            </p>
+            {variantes.map((variante, index) => (
+              <div key={index} className="flex flex-wrap items-end gap-2">
+                <FormField htmlFor={`nro-calce-item-${index}`} label="Nro de calce (opcional)" className="w-40">
+                  <Input
+                    id={`nro-calce-item-${index}`}
+                    value={variante.nroCalce}
+                    onChange={(e) => actualizarVariante(index, "nroCalce", e.target.value)}
+                  />
+                </FormField>
+                <FormField htmlFor={`stock-item-${index}`} label="Stock" className="w-28">
+                  <Input
+                    id={`stock-item-${index}`}
+                    value={variante.stockActual}
+                    onChange={(e) => actualizarVariante(index, "stockActual", e.target.value)}
+                    inputMode="decimal"
+                    placeholder="0"
+                  />
+                </FormField>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => quitarVariante(index)}
+                  disabled={variantes.length === 1}
+                  aria-label="Quitar variante"
+                >
+                  <Icon name="close" className="text-[16px]" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={agregarVariante} className="w-fit gap-1">
+              <Icon name="add" className="text-[16px]" />
+              Agregar variante
+            </Button>
+          </div>
+
           <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-3">
             <Button type="submit" disabled={isSubmitting}>
               Guardar
@@ -288,16 +388,31 @@ export function ItemCatalogo({
                       {estadoStock(item.stockActual).label}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditandoId(item.id)}
-                      className="opacity-0 group-hover:opacity-100"
-                    >
-                      <Icon name="edit" className="text-[18px]" />
-                    </Button>
+                  <td className="px-4 py-3">
+                    {/* Sin `opacity-0` en mobile: en touch no hay hover, así que los
+                        botones quedarían permanentemente invisibles (mismo criterio
+                        que caja-panel.tsx). */}
+                    <div className="flex items-center justify-center gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditandoId(item.id)}
+                        aria-label={`Editar ${item.nombre}`}
+                      >
+                        <Icon name="edit" className="text-[18px]" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onEliminar(item)}
+                        aria-label={`Eliminar ${item.nombre}`}
+                        className="text-danger hover:bg-error-container hover:text-on-error-container"
+                      >
+                        <Icon name="delete" className="text-[18px]" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               )
@@ -331,6 +446,10 @@ function ItemEditarFila({
 }) {
   const [nombre, setNombre] = useState(item.nombre);
   const [precioVenta, setPrecioVenta] = useState(item.precioVenta);
+  const [costoCompra, setCostoCompra] = useState(item.costoCompra ?? "");
+  const [stockActual, setStockActual] = useState(item.stockActual);
+  const [nroCalce, setNroCalce] = useState(item.nroCalce ?? "");
+  const [proveedor, setProveedor] = useState(item.proveedor ?? "");
   const [imagenUrl, setImagenUrl] = useState<string | null>(item.imagenUrl);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -339,7 +458,15 @@ function ItemEditarFila({
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
-    const result = await editarItem(item.id, negocioId, { nombre, precioVenta, imagenUrl });
+    const result = await editarItem(item.id, negocioId, {
+      nombre,
+      precioVenta,
+      costoCompra: costoCompra || null,
+      stockActual,
+      nroCalce: nroCalce.trim() || null,
+      proveedor: proveedor.trim() || null,
+      imagenUrl,
+    });
     setIsSubmitting(false);
     if (!result.ok) {
       setError(result.error.message);
@@ -352,8 +479,47 @@ function ItemEditarFila({
     <tr className="bg-surface-container-low">
       <td colSpan={10} className="p-3">
         <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2" noValidate>
-          <Input value={nombre} onChange={(e) => setNombre(e.target.value)} />
-          <Input value={precioVenta} onChange={(e) => setPrecioVenta(e.target.value)} className="w-28" />
+          <FormField htmlFor={`editar-nombre-${item.id}`} label="Nombre" className="w-40">
+            <Input id={`editar-nombre-${item.id}`} value={nombre} onChange={(e) => setNombre(e.target.value)} />
+          </FormField>
+          <FormField htmlFor={`editar-proveedor-${item.id}`} label="Proveedor" className="w-32">
+            <Input
+              id={`editar-proveedor-${item.id}`}
+              value={proveedor}
+              onChange={(e) => setProveedor(e.target.value)}
+            />
+          </FormField>
+          <FormField htmlFor={`editar-nro-calce-${item.id}`} label="Nro de calce" className="w-24">
+            <Input
+              id={`editar-nro-calce-${item.id}`}
+              value={nroCalce}
+              onChange={(e) => setNroCalce(e.target.value)}
+            />
+          </FormField>
+          <FormField htmlFor={`editar-costo-${item.id}`} label="Costo" className="w-24">
+            <Input
+              id={`editar-costo-${item.id}`}
+              value={costoCompra}
+              onChange={(e) => setCostoCompra(e.target.value)}
+              inputMode="decimal"
+            />
+          </FormField>
+          <FormField htmlFor={`editar-precio-${item.id}`} label="Precio de venta" className="w-24">
+            <Input
+              id={`editar-precio-${item.id}`}
+              value={precioVenta}
+              onChange={(e) => setPrecioVenta(e.target.value)}
+              inputMode="decimal"
+            />
+          </FormField>
+          <FormField htmlFor={`editar-stock-${item.id}`} label="Stock" className="w-20">
+            <Input
+              id={`editar-stock-${item.id}`}
+              value={stockActual}
+              onChange={(e) => setStockActual(e.target.value)}
+              inputMode="decimal"
+            />
+          </FormField>
           <ImagenItemUpload value={imagenUrl} onChange={setImagenUrl} />
           <Button type="submit" size="sm" disabled={isSubmitting}>
             Guardar

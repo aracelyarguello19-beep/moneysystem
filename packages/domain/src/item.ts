@@ -27,6 +27,25 @@ export class TipoItemBloqueadoError extends Error {
   }
 }
 
+export class ItemConMovimientosError extends Error {
+  constructor() {
+    super("Este producto ya tiene compras o ventas registradas — no se puede eliminar.");
+    this.name = "ItemConMovimientosError";
+  }
+}
+
+// Borrar un ítem con movimientos asociados corrompería el histórico: a
+// diferencia de CuentaFinanciera (Compra/Venta → item_id es `onDelete:
+// Cascade` en el schema, ver database-schema.md), no hay FK que lo bloquee
+// solo — el borrado se ejecutaría igual y se llevaría puesta cada Compra y
+// VentaItem que lo referencia, rompiendo CMV/CSV histórico. Este guard es la
+// única barrera, así que se aplica siempre antes de borrar.
+export function assertItemEliminable(item: Pick<Item, "tieneMovimientos">): void {
+  if (item.tieneMovimientos) {
+    throw new ItemConMovimientosError();
+  }
+}
+
 // AC3: el tipo no puede cambiarse después de tener movimientos (compras o
 // ventas) asociados, para no corromper el histórico de CMV/CSV. Función pura
 // para poder testearla sin infraestructura — resolver el ítem actual bajo

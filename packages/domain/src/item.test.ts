@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   assertCambioDeTipoPermitido,
+  assertItemEliminable,
   calcularCostoPromedioPonderado,
   calcularGananciaProducto,
+  ItemConMovimientosError,
   TipoItemBloqueadoError,
 } from "./item";
 
@@ -29,6 +31,16 @@ describe("assertCambioDeTipoPermitido", () => {
     expect(() =>
       assertCambioDeTipoPermitido({ tipo: "PRODUCTO", tieneMovimientos: true }, "PRODUCTO")
     ).not.toThrow();
+  });
+});
+
+describe("assertItemEliminable", () => {
+  it("permite eliminar un ítem sin movimientos", () => {
+    expect(() => assertItemEliminable({ tieneMovimientos: false })).not.toThrow();
+  });
+
+  it("rechaza eliminar un ítem con movimientos", () => {
+    expect(() => assertItemEliminable({ tieneMovimientos: true })).toThrow(ItemConMovimientosError);
   });
 });
 

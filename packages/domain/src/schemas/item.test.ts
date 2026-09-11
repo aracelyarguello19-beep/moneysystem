@@ -67,4 +67,16 @@ describe("editarItemSchema", () => {
     const result = editarItemSchema.safeParse({ nombre: "Silla reforzada", precioVenta: "160.00" });
     expect(result.success).toBe(true);
   });
+
+  it("acepta editar costoCompra, stockActual, nroCalce y proveedor", () => {
+    const result = editarItemSchema.safeParse({
+      nombre: "Zapatilla",
+      precioVenta: "250.00",
+      costoCompra: "120.00",
+      stockActual: "8",
+      nroCalce: "42",
+      proveedor: "Importadora ABC",
+    });
+    expect(result.success).toBe(true);
+  });
 });

@@ -50,7 +50,7 @@ export async function registrarMovimientoManual(
 
       await aplicarMovimientoCuenta(tx, {
         cuentaFinancieraId: parsed.data.cuentaFinancieraId,
-        tipo: "INGRESO",
+        tipo: parsed.data.tipo,
         monto: parsed.data.monto,
         referenciaTipo: "MANUAL",
       });

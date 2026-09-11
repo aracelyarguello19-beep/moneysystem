@@ -49,6 +49,8 @@ export async function editarItem(
         parsed.data.tipo
       );
 
+      const tipoResultante = parsed.data.tipo ?? (existente.tipo as Item["tipo"]);
+
       return tx.item.update({
         where: { id: itemId },
         data: {
@@ -56,6 +58,17 @@ export async function editarItem(
           precioVenta: parsed.data.precioVenta,
           ...(parsed.data.tipo ? { tipo: parsed.data.tipo } : {}),
           ...(parsed.data.imagenUrl !== undefined ? { imagenUrl: parsed.data.imagenUrl } : {}),
+          // Servicio nunca tiene costo/stock/variante (chk_item_servicio_sin_stock,
+          // mismo criterio que crearItemSchema) — se fuerza sin importar lo
+          // recibido; Producto solo actualiza lo que vino en el input.
+          ...(tipoResultante === "SERVICIO"
+            ? { costoCompra: null, stockActual: "0", nroCalce: null, proveedor: null }
+            : {
+                ...(parsed.data.costoCompra !== undefined ? { costoCompra: parsed.data.costoCompra } : {}),
+                ...(parsed.data.stockActual !== undefined ? { stockActual: parsed.data.stockActual } : {}),
+                ...(parsed.data.nroCalce !== undefined ? { nroCalce: parsed.data.nroCalce } : {}),
+                ...(parsed.data.proveedor !== undefined ? { proveedor: parsed.data.proveedor } : {}),
+              }),
         },
       });
     });

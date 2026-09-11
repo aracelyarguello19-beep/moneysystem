@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CuentaFinanciera, Moneda, TipoGasto } from "@repo/domain";
 import { crearCuentaFinanciera } from "@/actions/cuentas-financieras/crear-cuenta-financiera";
+import { editarCuentaFinanciera } from "@/actions/cuentas-financieras/editar-cuenta-financiera";
 import { eliminarCuentaFinanciera } from "@/actions/cuentas-financieras/eliminar-cuenta-financiera";
 import { obtenerCajaPageData } from "@/actions/cuentas-financieras/obtener-caja-page-data";
 import { registrarMovimientoManual } from "@/actions/cuentas-financieras/registrar-movimiento-manual";
@@ -372,50 +373,119 @@ function CuentaCard({
 
   const [agregandoMonto, setAgregandoMonto] = useState(false);
   const [monto, setMonto] = useState("");
+  const [tipoAjuste, setTipoAjuste] = useState<"INGRESO" | "EGRESO">("INGRESO");
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
+
+  const [editando, setEditando] = useState(false);
+  const [nombreEditado, setNombreEditado] = useState(cuenta.nombre);
+  const [saldoEditado, setSaldoEditado] = useState(cuenta.saldoActual);
+  const [guardandoNombre, setGuardandoNombre] = useState(false);
 
   async function onAgregar(e: React.FormEvent) {
     e.preventDefault();
     setMensaje(null);
     setEnviando(true);
-    const result = await registrarMovimientoManual(negocioId, { cuentaFinancieraId: cuenta.id, monto });
+    const result = await registrarMovimientoManual(negocioId, {
+      cuentaFinancieraId: cuenta.id,
+      monto,
+      tipo: tipoAjuste,
+    });
     setEnviando(false);
     if (!result.ok) {
       setMensaje(result.error.message);
       return;
     }
     setMonto("");
+    setTipoAjuste("INGRESO");
     setAgregandoMonto(false);
+    onCambio();
+    emitirInventarioCambiado();
+  }
+
+  async function onGuardarNombre(e: React.FormEvent) {
+    e.preventDefault();
+    setMensaje(null);
+    setGuardandoNombre(true);
+    const result = await editarCuentaFinanciera(cuenta.id, negocioId, {
+      nombre: nombreEditado,
+      saldoActual: saldoEditado,
+    });
+    setGuardandoNombre(false);
+    if (!result.ok) {
+      setMensaje(result.error.message);
+      return;
+    }
+    setEditando(false);
     onCambio();
     emitirInventarioCambiado();
   }
 
   return (
     <div className="group relative flex flex-col gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest p-4 transition-shadow hover:shadow-md">
-      {/* Sin `opacity-0` en mobile: en touch no hay hover, así que el botón de
-          eliminar quedaba permanentemente invisible. El fade arranca en `md`. */}
-      <button
-        type="button"
-        onClick={onEliminar}
-        aria-label={`Eliminar ${cuenta.nombre}`}
-        className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded text-on-surface-variant transition-opacity hover:bg-error-container hover:text-on-error-container md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100"
-      >
-        <Icon name="delete" className="text-[16px]" />
-      </button>
+      {/* Sin `opacity-0` en mobile: en touch no hay hover, así que los botones
+          quedaban permanentemente invisibles. El fade arranca en `md`. */}
+      <div className="absolute right-2 top-2 flex gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+        <button
+          type="button"
+          onClick={() => {
+            setNombreEditado(cuenta.nombre);
+            setSaldoEditado(cuenta.saldoActual);
+            setEditando(true);
+          }}
+          aria-label={`Editar ${cuenta.nombre}`}
+          className="flex h-9 w-9 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high md:h-7 md:w-7"
+        >
+          <Icon name="edit" className="text-[16px]" />
+        </button>
+        <button
+          type="button"
+          onClick={onEliminar}
+          aria-label={`Eliminar ${cuenta.nombre}`}
+          className="flex h-9 w-9 items-center justify-center rounded text-on-surface-variant hover:bg-error-container hover:text-on-error-container md:h-7 md:w-7"
+        >
+          <Icon name="delete" className="text-[16px]" />
+        </button>
+      </div>
 
-      <div className="flex items-center gap-3 pr-8">
+      <div className="flex items-center gap-3 pr-16">
         <IconoCuenta
           icon={esCaja ? "account_balance_wallet" : TIPO_ICON[cuenta.tipo]}
           claseFondo={esCaja ? claseFondoIconoMoneda(codigoMoneda, indiceMoneda) : undefined}
         />
-        <div className="min-w-0">
-          {/* `truncate` va en el span del nombre, no en el <p> flex: en un
-              contenedor flex el truncate no llega a los hijos. */}
-          <p className="flex min-w-0 items-center gap-1.5 text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
-            <span className="truncate">{cuenta.nombre}</span>
-            <Badge className="shrink-0 normal-case">{codigoMoneda}</Badge>
-          </p>
+        <div className="min-w-0 flex-1">
+          {editando ? (
+            <form onSubmit={onGuardarNombre} className="flex flex-wrap items-center gap-1">
+              <Input
+                aria-label={`Nombre de ${cuenta.nombre}`}
+                value={nombreEditado}
+                onChange={(e) => setNombreEditado(e.target.value)}
+                autoFocus
+                className="h-7 w-28 text-label-md"
+              />
+              <Input
+                aria-label={`Saldo de ${cuenta.nombre}`}
+                value={saldoEditado}
+                onChange={(e) => setSaldoEditado(e.target.value)}
+                inputMode="decimal"
+                placeholder="Saldo"
+                className="h-7 w-24 text-label-md"
+              />
+              <Button type="submit" size="sm" variant="outline" disabled={guardandoNombre || !nombreEditado.trim()} className="h-7 px-2">
+                <Icon name="check" className="text-[14px]" />
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setEditando(false)} className="h-7 px-2">
+                <Icon name="close" className="text-[14px]" />
+              </Button>
+            </form>
+          ) : (
+            // `truncate` va en el span del nombre, no en el <p> flex: en un
+            // contenedor flex el truncate no llega a los hijos.
+            <p className="flex min-w-0 items-center gap-1.5 text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
+              <span className="truncate">{cuenta.nombre}</span>
+              <Badge className="shrink-0 normal-case">{codigoMoneda}</Badge>
+            </p>
+          )}
         </div>
       </div>
 
@@ -445,12 +515,21 @@ function CuentaCard({
           className="flex items-center gap-1 self-start text-label-md text-tertiary hover:underline"
         >
           <Icon name="add" className="text-[14px]" />
-          Agregar monto
+          Ajustar saldo
         </button>
       ) : (
         <form onSubmit={onAgregar} className="flex items-center gap-1">
+          <Select
+            aria-label={`Tipo de ajuste para ${cuenta.nombre}`}
+            value={tipoAjuste}
+            onChange={(e) => setTipoAjuste(e.target.value as "INGRESO" | "EGRESO")}
+            className="h-7 w-14 text-label-md"
+          >
+            <option value="INGRESO">+</option>
+            <option value="EGRESO">−</option>
+          </Select>
           <Input
-            aria-label={`Agregar monto a ${cuenta.nombre}`}
+            aria-label={`Ajustar saldo de ${cuenta.nombre}`}
             value={monto}
             onChange={(e) => setMonto(e.target.value)}
             placeholder="Monto"
@@ -497,6 +576,31 @@ function TarjetaCard({
   const tipoGastoId = tiposGastoFinanciero[0]?.id ?? "";
   const [mensaje, setMensaje] = useState<string | null>(null);
 
+  const [editando, setEditando] = useState(false);
+  const [nombreEditado, setNombreEditado] = useState(tarjeta.nombre);
+  const [limiteEditado, setLimiteEditado] = useState(tarjeta.limiteCredito ?? "");
+  const [saldoEditado, setSaldoEditado] = useState(tarjeta.saldoActual);
+  const [guardandoNombre, setGuardandoNombre] = useState(false);
+
+  async function onGuardarNombre(e: React.FormEvent) {
+    e.preventDefault();
+    setMensaje(null);
+    setGuardandoNombre(true);
+    const result = await editarCuentaFinanciera(tarjeta.id, negocioId, {
+      nombre: nombreEditado,
+      limiteCredito: limiteEditado || null,
+      saldoActual: saldoEditado,
+    });
+    setGuardandoNombre(false);
+    if (!result.ok) {
+      setMensaje(result.error.message);
+      return;
+    }
+    setEditando(false);
+    onCambio();
+    emitirInventarioCambiado();
+  }
+
   async function onPagoResumen(e: React.FormEvent) {
     e.preventDefault();
     setMensaje(null);
@@ -535,24 +639,72 @@ function TarjetaCard({
 
   return (
     <div className="group relative flex flex-col gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest p-4 transition-shadow hover:shadow-md sm:col-span-2 lg:col-span-1">
-      {/* Mismo criterio que la card de cuenta: sin hover en touch, el botón no
-          puede depender de `group-hover` para ser visible. */}
-      <button
-        type="button"
-        onClick={onEliminar}
-        aria-label={`Eliminar ${tarjeta.nombre}`}
-        className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded text-on-surface-variant transition-opacity hover:bg-error-container hover:text-on-error-container md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100"
-      >
-        <Icon name="delete" className="text-[16px]" />
-      </button>
+      {/* Mismo criterio que la card de cuenta: sin hover en touch, los botones
+          no pueden depender de `group-hover` para ser visibles. */}
+      <div className="absolute right-2 top-2 flex gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+        <button
+          type="button"
+          onClick={() => {
+            setNombreEditado(tarjeta.nombre);
+            setLimiteEditado(tarjeta.limiteCredito ?? "");
+            setSaldoEditado(tarjeta.saldoActual);
+            setEditando(true);
+          }}
+          aria-label={`Editar ${tarjeta.nombre}`}
+          className="flex h-9 w-9 items-center justify-center rounded text-on-surface-variant hover:bg-surface-container-high md:h-7 md:w-7"
+        >
+          <Icon name="edit" className="text-[16px]" />
+        </button>
+        <button
+          type="button"
+          onClick={onEliminar}
+          aria-label={`Eliminar ${tarjeta.nombre}`}
+          className="flex h-9 w-9 items-center justify-center rounded text-on-surface-variant hover:bg-error-container hover:text-on-error-container md:h-7 md:w-7"
+        >
+          <Icon name="delete" className="text-[16px]" />
+        </button>
+      </div>
 
-      <div className="flex items-center gap-3 pr-8">
+      <div className="flex items-center gap-3 pr-16">
         <IconoCuenta icon="credit_card" />
-        <div className="min-w-0">
-          <p className="flex min-w-0 items-center gap-1.5 text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
-            <span className="truncate">{tarjeta.nombre}</span>
-            <Badge className="shrink-0 normal-case">{codigoMoneda}</Badge>
-          </p>
+        <div className="min-w-0 flex-1">
+          {editando ? (
+            <form onSubmit={onGuardarNombre} className="flex flex-wrap items-center gap-1">
+              <Input
+                aria-label={`Nombre de ${tarjeta.nombre}`}
+                value={nombreEditado}
+                onChange={(e) => setNombreEditado(e.target.value)}
+                autoFocus
+                className="h-7 w-28 text-label-md"
+              />
+              <Input
+                aria-label={`Límite de crédito de ${tarjeta.nombre}`}
+                value={limiteEditado}
+                onChange={(e) => setLimiteEditado(e.target.value)}
+                placeholder="Límite"
+                inputMode="decimal"
+                className="h-7 w-20 text-label-md"
+              />
+              <Input
+                aria-label={`Deuda de ${tarjeta.nombre}`}
+                value={saldoEditado}
+                onChange={(e) => setSaldoEditado(e.target.value)}
+                placeholder="Deuda"
+                className="h-7 w-24 text-label-md"
+              />
+              <Button type="submit" size="sm" variant="outline" disabled={guardandoNombre || !nombreEditado.trim()} className="h-7 px-2">
+                <Icon name="check" className="text-[14px]" />
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setEditando(false)} className="h-7 px-2">
+                <Icon name="close" className="text-[14px]" />
+              </Button>
+            </form>
+          ) : (
+            <p className="flex min-w-0 items-center gap-1.5 text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">
+              <span className="truncate">{tarjeta.nombre}</span>
+              <Badge className="shrink-0 normal-case">{codigoMoneda}</Badge>
+            </p>
+          )}
         </div>
       </div>
 

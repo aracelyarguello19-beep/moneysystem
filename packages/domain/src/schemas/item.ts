@@ -32,13 +32,20 @@ export const crearItemSchema = z.discriminatedUnion("tipo", [
 ]);
 export type CrearItemInput = z.infer<typeof crearItemSchema>;
 
-// Solo campos no estructurales (AC4). `tipo` es opcional: AC3 permite
-// cambiarlo mientras el ítem no tenga movimientos asociados — la Server
-// Action decide si se acepta según `tieneMovimientos`, no este schema.
+// `tipo` es opcional: AC3 permite cambiarlo mientras el ítem no tenga
+// movimientos asociados — la Server Action decide si se acepta según
+// `tieneMovimientos`, no este schema. `costoCompra`/`stockActual`/`nroCalce`/
+// `proveedor` son opcionales y solo se aplican si el ítem (resultante) es
+// PRODUCTO — la Server Action los fuerza a null/"0" para SERVICIO, mismo
+// criterio que crearItemSchema.
 export const editarItemSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio"),
   precioVenta: decimalStringSchema,
   tipo: z.enum(["PRODUCTO", "SERVICIO"]).optional(),
   imagenUrl: z.string().url().nullable().optional(),
+  costoCompra: decimalStringSchema.nullable().optional(),
+  stockActual: decimalStringSchema.optional(),
+  nroCalce: z.string().trim().min(1).nullable().optional(),
+  proveedor: z.string().trim().min(1).nullable().optional(),
 });
 export type EditarItemInput = z.infer<typeof editarItemSchema>;

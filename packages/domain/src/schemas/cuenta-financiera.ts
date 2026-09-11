@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { decimalStringSchema } from "./decimal";
+import { decimalSignedStringSchema, decimalStringSchema } from "./decimal";
 
 // Caja unificada: los 4 tipos se crean por esta misma vía. BANCO requiere
 // `banco` (nombre del banco) para poder agrupar varias cuentas del mismo
@@ -40,6 +40,22 @@ export const crearCuentaFinancieraSchema = z
   });
 export type CrearCuentaFinancieraInput = z.infer<typeof crearCuentaFinancieraSchema>;
 
+// Edición de campos no estructurales: nombre siempre editable; `limiteCredito`
+// solo tiene sentido para TARJETA pero se deja pasar `null`/`undefined` para
+// el resto sin romper el schema. `saldoActual` es el valor que el usuario
+// quiere ver reflejado (no un delta) — con signo porque en TARJETA negativo
+// = deuda; la Server Action calcula la diferencia contra el saldo actual y
+// la aplica como un movimiento más (`aplicarMovimientoCuenta`/
+// `aplicarMovimientoTarjeta`), nunca pisando la columna directo, para que
+// la corrección quede auditada igual que cualquier otro movimiento (ver
+// ledger.ts).
+export const editarCuentaFinancieraSchema = z.object({
+  nombre: z.string().trim().min(1, "El nombre es obligatorio"),
+  limiteCredito: decimalStringSchema.nullable().optional(),
+  saldoActual: decimalSignedStringSchema.optional(),
+});
+export type EditarCuentaFinancieraInput = z.infer<typeof editarCuentaFinancieraSchema>;
+
 export const registrarPagoResumenTarjetaSchema = z.object({
   monto: decimalStringSchema.refine((val) => Number(val) > 0, "El monto debe ser mayor a cero"),
   cuentaFinancieraId: z.string().uuid(),
@@ -55,8 +71,13 @@ export type RegistrarInteresTarjetaInput = z.infer<typeof registrarInteresTarjet
 // Ajuste manual de saldo (depósito inicial, corrección) sobre una cuenta
 // Efectivo/Banco — nunca Tarjeta, esa solo se mueve vía pago de
 // resumen/interés (ver registrarPagoResumenTarjetaSchema/registrarInteresTarjetaSchema).
+// `tipo` (INGRESO/EGRESO, default INGRESO por compatibilidad con el
+// comportamiento previo) permite corregir el saldo hacia abajo sin tocar
+// `saldoActual` directamente — ambos casos pasan por `aplicarMovimientoCuenta`,
+// así que el ajuste siempre queda auditado en `movimientos_cuenta`.
 export const registrarMovimientoManualSchema = z.object({
   cuentaFinancieraId: z.string().uuid(),
   monto: decimalStringSchema.refine((val) => Number(val) > 0, "El monto debe ser mayor a cero"),
+  tipo: z.enum(["INGRESO", "EGRESO"]).default("INGRESO"),
 });
 export type RegistrarMovimientoManualInput = z.infer<typeof registrarMovimientoManualSchema>;
