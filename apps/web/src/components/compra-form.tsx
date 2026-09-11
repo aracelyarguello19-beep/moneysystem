@@ -22,11 +22,10 @@ const FORMAS_PAGO: Compra["formaPago"][] = ["EFECTIVO", "BANCO", "TARJETA", "CRE
 
 interface VarianteCompraForm {
   nroCalce: string;
-  cantidad: string;
 }
 
 function nuevaVarianteCompraVacia(): VarianteCompraForm {
-  return { nroCalce: "", cantidad: "" };
+  return { nroCalce: "" };
 }
 
 // Carga diferida: `ImagenItemUpload` trae el cliente completo de
@@ -69,8 +68,8 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
   const [nuevoMensaje, setNuevoMensaje] = useState<string | null>(null);
   const [creandoEnProgreso, setCreandoEnProgreso] = useState(false);
 
-  function actualizarVariante(index: number, campo: keyof VarianteCompraForm, valor: string) {
-    setVariantes((actuales) => actuales.map((v, i) => (i === index ? { ...v, [campo]: valor } : v)));
+  function actualizarVariante(index: number, valor: string) {
+    setVariantes((actuales) => actuales.map((v, i) => (i === index ? { nroCalce: valor } : v)));
   }
 
   function agregarVariante() {
@@ -106,24 +105,22 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
   useInventarioCambiado(cargar);
 
   // Cada variante (nro de calce) declarada crea su propio Item, igual que en
-  // Inventario (ver item-catalogo.tsx). La primera variante arranca con
-  // stock 0: queda seleccionada para esta compra y es "Registrar compra"
-  // quien carga su stock al confirmar (con el costo/fecha/proveedor de la
-  // transacción), para no contarla dos veces. Las demás variantes no tienen
-  // un registro de compra propio en este flujo, así que su cantidad se toma
-  // directa del campo "Cantidad" de la variante.
+  // Inventario (ver item-catalogo.tsx) — todas arrancan con stock 0, es
+  // "Registrar compra" quien lo carga al confirmar, para no contar esta
+  // primera compra dos veces. El primer ítem creado queda seleccionado para
+  // esta compra; el resto queda en el catálogo listo para compras futuras.
   async function onCrearProducto() {
     setNuevoMensaje(null);
     setCreandoEnProgreso(true);
     const idsCreados: string[] = [];
-    for (const [index, variante] of variantes.entries()) {
+    for (const variante of variantes) {
       const result = await crearItem(negocioId, {
         tipo: "PRODUCTO",
         nombre: nuevoNombre,
         precioVenta: "0",
         monedaId,
         costoCompra: costoUnitario || "0",
-        stockActual: index === 0 ? "0" : variante.cantidad || "0",
+        stockActual: "0",
         nroCalce: variante.nroCalce.trim() || undefined,
         imagenUrl: nuevaImagenUrl ?? undefined,
       });
@@ -318,21 +315,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
                   <Input
                     id={`nuevo-nro-calce-compra-${index}`}
                     value={variante.nroCalce}
-                    onChange={(e) => actualizarVariante(index, "nroCalce", e.target.value)}
-                  />
-                </FormField>
-                <FormField
-                  htmlFor={`nuevo-cantidad-compra-${index}`}
-                  label={index === 0 ? "Cantidad (usa la de arriba)" : "Cantidad"}
-                  className="w-28"
-                >
-                  <Input
-                    id={`nuevo-cantidad-compra-${index}`}
-                    value={index === 0 ? cantidad : variante.cantidad}
-                    onChange={(e) => actualizarVariante(index, "cantidad", e.target.value)}
-                    inputMode="decimal"
-                    placeholder="0"
-                    disabled={index === 0}
+                    onChange={(e) => actualizarVariante(index, e.target.value)}
                   />
                 </FormField>
                 <Button
@@ -356,7 +339,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
           <p className="text-xs text-muted sm:col-span-2">
             El costo unitario cargado arriba ({costoUnitario || "0"}) queda como su costo inicial.
             {variantes.length > 1 &&
-              " Se va a crear un producto por cada variante; la primera queda seleccionada para esta compra y toma la cantidad del campo \"Cantidad\" de arriba. Las demás quedan en el catálogo con la cantidad que cargues acá."}
+              " Se va a crear un producto por cada variante; la primera queda seleccionada para esta compra."}
           </p>
           <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
             <Button
