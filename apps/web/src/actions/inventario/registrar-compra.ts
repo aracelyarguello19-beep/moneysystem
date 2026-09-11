@@ -24,67 +24,88 @@ import { withErrorHandling } from "@/lib/server-action-wrapper";
 // están completos. `CREDITO_PROVEEDOR` no ajusta ningún saldo (no hay
 // `CuentaPorPagar` modelada — la deuda con el proveedor no está en el data
 // model de este proyecto, solo se documenta la forma de pago).
+//
+// `items` permite registrar una compra de varios productos a la vez (mismo
+// proveedor/fecha/forma de pago/cuenta): cada línea crea su propia fila de
+// `Compra` y actualiza el stock/costo promedio de su propio ítem — no hay
+// una tabla de línea de compra en el modelo (a diferencia de VentaItem), así
+// que "una compra con 3 productos" son 3 filas de `Compra` con el mismo
+// proveedor/fecha/forma de pago, más UN solo movimiento de cuenta/tarjeta
+// por el total (no uno por línea, para no fragmentar el egreso real).
 // [Source: architecture/api-specification.md#Convención de Server Actions, Story 4.2 Completion Notes]
 export const registrarCompra = withErrorHandling(
-  async (negocioId: string, input: unknown): Promise<Compra> => {
+  async (negocioId: string, input: unknown): Promise<Compra[]> => {
     const parsed = registrarCompraSchema.parse(input);
     const cuenta = await getCurrentAccount();
     if (!cuenta) throw new Error("No hay sesión activa");
 
-    const compra = await withRlsContext(cuenta.id, negocioId, async (tx) => {
-      const item = await tx.item.findUniqueOrThrow({ where: { id: parsed.itemId } });
-      assertItemEsProducto({ tipo: item.tipo as Item["tipo"] });
-
+    const compras = await withRlsContext(cuenta.id, negocioId, async (tx) => {
       // Story 5.3, AC3/AC4 / Coding Standard "Tasa de Cambio Inmutable": el
       // cliente nunca decide `tasaCambioId` — se resuelve acá, la vigente a
-      // `fecha`, y queda grabada de forma inmutable en la compra.
+      // `fecha`, y queda grabada de forma inmutable en cada línea. Se
+      // resuelve una sola vez porque todas las líneas comparten
+      // moneda/fecha (una sola transacción/factura de compra).
       const moneda = await tx.moneda.findUniqueOrThrow({ where: { id: parsed.monedaId } });
       const tasaCambio = moneda.esBase
         ? null
         : await resolverTasaCambioVigente(tx, parsed.monedaId, parsed.fecha);
 
-      const nueva = await tx.compra.create({
-        data: {
-          negocioId,
-          cuentaId: cuenta.id,
-          itemId: parsed.itemId,
-          costoUnitario: parsed.costoUnitario,
-          cantidad: parsed.cantidad,
-          fecha: parsed.fecha,
-          proveedor: parsed.proveedor ?? null,
-          formaPago: parsed.formaPago,
-          cuentaFinancieraId: parsed.cuentaFinancieraId,
-          monedaId: parsed.monedaId,
-          tasaCambioId: tasaCambio?.id ?? null,
-        },
-      });
+      const creadas: Awaited<ReturnType<typeof tx.compra.create>>[] = [];
 
-      // Costo promedio ponderado: se calcula con el stock/costo *previos* a
-      // esta compra (ver calcularCostoPromedioPonderado) — nunca se pisa con
-      // el costo de esta compra sola, para que dos compras del mismo ítem a
-      // precios distintos queden reflejadas en un único costo coherente.
-      const nuevoCostoCompra = calcularCostoPromedioPonderado(
-        item.stockActual.toString(),
-        item.costoCompra?.toString() ?? null,
-        parsed.cantidad,
-        parsed.costoUnitario
-      );
+      for (const linea of parsed.items) {
+        const item = await tx.item.findUniqueOrThrow({ where: { id: linea.itemId } });
+        assertItemEsProducto({ tipo: item.tipo as Item["tipo"] });
 
-      await tx.item.update({
-        where: { id: parsed.itemId },
-        data: {
-          stockActual: { increment: parsed.cantidad },
-          costoCompra: nuevoCostoCompra,
-          tieneMovimientos: true,
-        },
-      });
+        const nueva = await tx.compra.create({
+          data: {
+            negocioId,
+            cuentaId: cuenta.id,
+            itemId: linea.itemId,
+            costoUnitario: linea.costoUnitario,
+            cantidad: linea.cantidad,
+            fecha: parsed.fecha,
+            proveedor: parsed.proveedor ?? null,
+            formaPago: parsed.formaPago,
+            cuentaFinancieraId: parsed.cuentaFinancieraId,
+            monedaId: parsed.monedaId,
+            tasaCambioId: tasaCambio?.id ?? null,
+          },
+        });
+
+        // Costo promedio ponderado: se calcula con el stock/costo *previos*
+        // a esta línea (ver calcularCostoPromedioPonderado) — si el mismo
+        // ítem aparece en dos líneas de esta misma compra, la segunda ya lee
+        // el stock/costo actualizado por la primera (se procesan en orden,
+        // no en paralelo), así que el promedio sigue siendo correcto.
+        const nuevoCostoCompra = calcularCostoPromedioPonderado(
+          item.stockActual.toString(),
+          item.costoCompra?.toString() ?? null,
+          linea.cantidad,
+          linea.costoUnitario
+        );
+
+        await tx.item.update({
+          where: { id: linea.itemId },
+          data: {
+            stockActual: { increment: linea.cantidad },
+            costoCompra: nuevoCostoCompra,
+            tieneMovimientos: true,
+          },
+        });
+
+        creadas.push(nueva);
+      }
 
       if (parsed.cuentaFinancieraId) {
         const cuentaFinanciera = await tx.cuentaFinanciera.findUniqueOrThrow({
           where: { id: parsed.cuentaFinancieraId },
         });
-        const montoTotal = new Prisma.Decimal(parsed.costoUnitario)
-          .times(parsed.cantidad)
+        const montoTotal = parsed.items
+          .reduce(
+            (acumulado, linea) =>
+              acumulado.plus(new Prisma.Decimal(linea.costoUnitario).times(linea.cantidad)),
+            new Prisma.Decimal(0)
+          )
           .toString();
 
         if (parsed.formaPago === "TARJETA") {
@@ -94,7 +115,7 @@ export const registrarCompra = withErrorHandling(
             tipo: "CONSUMO",
             monto: montoTotal,
             referenciaTipo: "COMPRA",
-            referenciaId: nueva.id,
+            referenciaId: creadas[0].id,
           });
         } else {
           assertCuentaFinancieraNoEsTarjeta({ tipo: cuentaFinanciera.tipo as CuentaFinanciera["tipo"] });
@@ -103,19 +124,19 @@ export const registrarCompra = withErrorHandling(
             tipo: "EGRESO",
             monto: montoTotal,
             referenciaTipo: "COMPRA",
-            referenciaId: nueva.id,
+            referenciaId: creadas[0].id,
           });
         }
       }
 
-      return nueva;
+      return creadas;
     });
 
     revalidatePath("/laboral/compras");
     revalidatePath("/laboral/indicadores");
     revalidatePath("/laboral/inventario");
 
-    return {
+    return compras.map((compra) => ({
       id: compra.id,
       negocioId: compra.negocioId,
       itemId: compra.itemId,
@@ -128,6 +149,6 @@ export const registrarCompra = withErrorHandling(
       monedaId: compra.monedaId,
       tasaCambioId: compra.tasaCambioId,
       afectaInventario: compra.afectaInventario,
-    };
+    }));
   }
 );

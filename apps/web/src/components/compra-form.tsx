@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import Decimal from "decimal.js";
 import type { Compra, Item, Moneda } from "@repo/domain";
 import { registrarCompra } from "@/actions/inventario/registrar-compra";
 import { crearItem } from "@/actions/inventario/crear-item";
@@ -9,7 +10,7 @@ import { listarItems } from "@/actions/inventario/listar-items";
 import { listarCompras } from "@/actions/inventario/listar-compras";
 import { listarMonedas } from "@/actions/catalogos/listar-monedas";
 import { CuentaFinancieraSelect } from "@/components/cuenta-financiera-select";
-import { ProductoBuscador } from "@/components/producto-buscador";
+import { ProductoBuscador, etiquetaProducto } from "@/components/producto-buscador";
 import { emitirInventarioCambiado, useInventarioCambiado } from "@/lib/inventario-events";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -26,6 +27,13 @@ interface VarianteCompraForm {
 
 function nuevaVarianteCompraVacia(): VarianteCompraForm {
   return { nroCalce: "" };
+}
+
+interface LineaCompraForm {
+  id: string;
+  itemId: string;
+  costoUnitario: string;
+  cantidad: string;
 }
 
 // Carga diferida: `ImagenItemUpload` trae el cliente completo de
@@ -45,6 +53,12 @@ type CompraListada = Compra & { itemNombre: string; itemNroCalce: string | null 
 // compra la que lo carga al inventario, para no contar el stock dos veces.
 // El historial es el registro tal cual se compró — el promedio ponderado
 // que combina compras del mismo ítem vive en Inventario, no acá.
+//
+// La compra es una lista/carrito (mismo patrón que RegistrarVentaForm): se
+// agregan una o más líneas (producto + costo + cantidad) y se registran
+// todas juntas con un mismo proveedor/fecha/forma de pago/cuenta — cubre el
+// caso de comprarle varios productos distintos al mismo proveedor de una
+// sola vez (ver registrar-compra.ts, que crea una fila de Compra por línea).
 export function CompraForm({ negocioId }: { negocioId: string }) {
   const [productos, setProductos] = useState<Item[]>([]);
   const [monedas, setMonedas] = useState<Moneda[]>([]);
@@ -52,9 +66,11 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [itemId, setItemId] = useState("");
-  const [costoUnitario, setCostoUnitario] = useState("");
-  const [cantidad, setCantidad] = useState("");
+  const [lineas, setLineas] = useState<LineaCompraForm[]>([]);
+  const [stagingItemId, setStagingItemId] = useState("");
+  const [stagingCosto, setStagingCosto] = useState("");
+  const [stagingCantidad, setStagingCantidad] = useState("1");
+
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [proveedor, setProveedor] = useState("");
   const [formaPago, setFormaPago] = useState<Compra["formaPago"]>("EFECTIVO");
@@ -63,6 +79,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
 
   const [creandoProducto, setCreandoProducto] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState("");
+  const [nuevoCostoUnitario, setNuevoCostoUnitario] = useState("");
   const [variantes, setVariantes] = useState<VarianteCompraForm[]>([nuevaVarianteCompraVacia()]);
   const [nuevaImagenUrl, setNuevaImagenUrl] = useState<string | null>(null);
   const [nuevoMensaje, setNuevoMensaje] = useState<string | null>(null);
@@ -80,6 +97,39 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
     setVariantes((actuales) => (actuales.length > 1 ? actuales.filter((_, i) => i !== index) : actuales));
   }
 
+  function onSeleccionarStaging(itemId: string) {
+    setStagingItemId(itemId);
+    const item = productos.find((p) => p.id === itemId);
+    if (item?.costoCompra && !stagingCosto) {
+      setStagingCosto(item.costoCompra);
+    }
+  }
+
+  const listoParaAgregar = !!stagingItemId && !!stagingCosto && Number(stagingCantidad) > 0;
+
+  function agregarLinea() {
+    if (!listoParaAgregar) return;
+    setLineas((actuales) => [
+      ...actuales,
+      { id: crypto.randomUUID(), itemId: stagingItemId, costoUnitario: stagingCosto, cantidad: stagingCantidad },
+    ]);
+    setStagingItemId("");
+    setStagingCosto("");
+    setStagingCantidad("1");
+  }
+
+  function actualizarLinea(id: string, cambios: Partial<LineaCompraForm>) {
+    setLineas((actuales) => actuales.map((l) => (l.id === id ? { ...l, ...cambios } : l)));
+  }
+
+  function quitarLinea(id: string) {
+    setLineas((actuales) => actuales.filter((l) => l.id !== id));
+  }
+
+  function itemPorId(itemId: string): Item | undefined {
+    return productos.find((p) => p.id === itemId);
+  }
+
   const cargar = useCallback(async () => {
     const [itemsResult, monedasResult, historialResult] = await Promise.all([
       listarItems(negocioId),
@@ -89,7 +139,6 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
     if (itemsResult.ok) {
       const soloProductos = itemsResult.data.filter((i) => i.tipo === "PRODUCTO");
       setProductos(soloProductos);
-      setItemId((actual) => actual || soloProductos[0]?.id || "");
     }
     if (monedasResult.ok) {
       setMonedas(monedasResult.data.filter((m) => m.activa));
@@ -105,21 +154,21 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
   useInventarioCambiado(cargar);
 
   // Cada variante (nro de calce) declarada crea su propio Item, igual que en
-  // Inventario (ver item-catalogo.tsx) — todas arrancan con stock 0, es
-  // "Registrar compra" quien lo carga al confirmar, para no contar esta
-  // primera compra dos veces. El primer ítem creado queda seleccionado para
-  // esta compra; el resto queda en el catálogo listo para compras futuras.
+  // Inventario (ver item-catalogo.tsx) — todas arrancan con stock 0. En vez
+  // de pedir acá la cantidad de cada variante, cada una queda agregada a la
+  // lista de la compra con su cantidad vacía: se completa como cualquier
+  // otra línea (un solo lugar para cargar cantidades, no dos).
   async function onCrearProducto() {
     setNuevoMensaje(null);
     setCreandoEnProgreso(true);
-    const idsCreados: string[] = [];
+    const nuevasLineas: LineaCompraForm[] = [];
     for (const variante of variantes) {
       const result = await crearItem(negocioId, {
         tipo: "PRODUCTO",
         nombre: nuevoNombre,
         precioVenta: "0",
         monedaId,
-        costoCompra: costoUnitario || "0",
+        costoCompra: nuevoCostoUnitario || "0",
         stockActual: "0",
         nroCalce: variante.nroCalce.trim() || undefined,
         imagenUrl: nuevaImagenUrl ?? undefined,
@@ -127,20 +176,27 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
       if (!result.ok) {
         setNuevoMensaje(result.error.message);
         setCreandoEnProgreso(false);
-        if (idsCreados.length > 0) {
+        if (nuevasLineas.length > 0) {
+          setLineas((actuales) => [...actuales, ...nuevasLineas]);
           await cargar();
           emitirInventarioCambiado();
         }
         return;
       }
-      idsCreados.push(result.data.id);
+      nuevasLineas.push({
+        id: crypto.randomUUID(),
+        itemId: result.data.id,
+        costoUnitario: nuevoCostoUnitario || "0",
+        cantidad: "",
+      });
     }
     setCreandoEnProgreso(false);
     await cargar();
     emitirInventarioCambiado();
-    setItemId(idsCreados[0]);
+    setLineas((actuales) => [...actuales, ...nuevasLineas]);
     setCreandoProducto(false);
     setNuevoNombre("");
+    setNuevoCostoUnitario("");
     setVariantes([nuevaVarianteCompraVacia()]);
     setNuevaImagenUrl(null);
   }
@@ -148,12 +204,23 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setServerMessage(null);
-    setIsSubmitting(true);
 
+    if (lineas.length === 0) {
+      setServerMessage("Agregá al menos un producto a la lista.");
+      return;
+    }
+    if (lineas.some((l) => !l.costoUnitario || !l.cantidad || Number(l.cantidad) <= 0)) {
+      setServerMessage("Completá el costo y la cantidad de todos los productos de la lista.");
+      return;
+    }
+
+    setIsSubmitting(true);
     const result = await registrarCompra(negocioId, {
-      itemId,
-      costoUnitario,
-      cantidad,
+      items: lineas.map((l) => ({
+        itemId: l.itemId,
+        costoUnitario: l.costoUnitario,
+        cantidad: l.cantidad,
+      })),
       fecha,
       proveedor: proveedor || undefined,
       formaPago,
@@ -166,14 +233,18 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
       setServerMessage(result.error.message);
       return;
     }
-    setCostoUnitario("");
-    setCantidad("");
+    setLineas([]);
     setProveedor("");
     await cargar();
     emitirInventarioCambiado();
   }
 
   const codigoMoneda = (monedaId: string) => monedas.find((m) => m.id === monedaId)?.codigo;
+
+  const total = lineas.reduce(
+    (acumulado, l) => acumulado.plus(new Decimal(l.costoUnitario || "0").times(l.cantidad || "0")),
+    new Decimal(0)
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -184,109 +255,17 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
         </p>
       )}
 
-      {/* Grid en vez de `flex flex-wrap`: 8 campos dimensionados por contenido
-          (buscador de producto, selects de moneda/forma de pago/cuenta)
-          desbordan la fila en mobile. Una columna hasta `sm`. */}
-      <form
-        onSubmit={onSubmit}
-        className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-3"
-        noValidate
+      <Button
+        type="button"
+        variant="link"
+        className="justify-self-start"
+        onClick={() => {
+          setCreandoProducto(true);
+          setNuevoMensaje(null);
+        }}
       >
-        <Button
-          type="button"
-          variant="link"
-          className="justify-self-start sm:col-span-2 lg:col-span-3"
-          onClick={() => {
-            setCreandoProducto(true);
-            setNuevoMensaje(null);
-          }}
-        >
-          + Nuevo producto
-        </Button>
-        {productos.length > 0 && (
-          <FormField htmlFor="item-compra" label="Producto">
-            <ProductoBuscador id="item-compra" productos={productos} value={itemId} onChange={setItemId} />
-          </FormField>
-        )}
-        <FormField htmlFor="costo-unitario" label="Costo unitario">
-          <Input
-            id="costo-unitario"
-            value={costoUnitario}
-            onChange={(e) => setCostoUnitario(e.target.value)}
-            required
-            inputMode="decimal"
-          />
-        </FormField>
-        <FormField htmlFor="cantidad-compra" label="Cantidad">
-          <Input
-            id="cantidad-compra"
-            value={cantidad}
-            onChange={(e) => setCantidad(e.target.value)}
-            required
-            inputMode="numeric"
-          />
-        </FormField>
-        <FormField htmlFor="fecha-compra" label="Fecha">
-          <Input
-            id="fecha-compra"
-            type="date"
-            value={fecha}
-            onChange={(e) => setFecha(e.target.value)}
-            required
-          />
-        </FormField>
-        <FormField htmlFor="proveedor-compra" label="Proveedor (opcional)">
-          <Input
-            id="proveedor-compra"
-            value={proveedor}
-            onChange={(e) => setProveedor(e.target.value)}
-          />
-        </FormField>
-        <FormField htmlFor="moneda-compra" label="Moneda">
-          <Select
-            id="moneda-compra"
-            value={monedaId}
-            onChange={(e) => setMonedaId(e.target.value)}
-            required
-          >
-            {monedas.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.codigo}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-        <FormField htmlFor="forma-pago" label="Forma de pago">
-          <Select
-            id="forma-pago"
-            value={formaPago}
-            onChange={(e) => setFormaPago(e.target.value as Compra["formaPago"])}
-          >
-            {FORMAS_PAGO.map((fp) => (
-              <option key={fp} value={fp}>
-                {fp}
-              </option>
-            ))}
-          </Select>
-        </FormField>
-        {formaPago !== "CREDITO_PROVEEDOR" && (
-          <CuentaFinancieraSelect
-            id="cuenta-financiera"
-            negocioId={negocioId}
-            tipo={formaPago === "TARJETA" ? "TARJETA" : formaPago === "BANCO" ? "BANCO" : "CAJA"}
-            value={cuentaFinancieraId}
-            onChange={setCuentaFinancieraId}
-            label="Cuenta financiera"
-          />
-        )}
-        <Button
-          type="submit"
-          disabled={isSubmitting || productos.length === 0}
-          className="sm:col-span-2 sm:justify-self-start lg:col-span-3"
-        >
-          Registrar compra
-        </Button>
-      </form>
+        + Nuevo producto
+      </Button>
 
       {creandoProducto && (
         <div className="grid grid-cols-1 items-end gap-3 rounded border border-dashed p-3 sm:grid-cols-2">
@@ -295,6 +274,15 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
               id="nuevo-nombre-compra"
               value={nuevoNombre}
               onChange={(e) => setNuevoNombre(e.target.value)}
+            />
+          </FormField>
+          <FormField htmlFor="nuevo-costo-compra" label="Costo unitario">
+            <Input
+              id="nuevo-costo-compra"
+              value={nuevoCostoUnitario}
+              onChange={(e) => setNuevoCostoUnitario(e.target.value)}
+              inputMode="decimal"
+              placeholder="0"
             />
           </FormField>
           <FormField htmlFor="nueva-imagen-compra" label="Foto del producto (opcional)">
@@ -337,9 +325,9 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
           </div>
 
           <p className="text-xs text-muted sm:col-span-2">
-            El costo unitario cargado arriba ({costoUnitario || "0"}) queda como su costo inicial.
+            El costo unitario cargado arriba ({nuevoCostoUnitario || "0"}) queda como su costo inicial.
             {variantes.length > 1 &&
-              " Se va a crear un producto por cada variante; la primera queda seleccionada para esta compra."}
+              " Se va a crear un producto por cada variante y se agregan todas a la lista de esta compra — completá la cantidad de cada una ahí abajo."}
           </p>
           <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
             <Button
@@ -348,7 +336,7 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
               disabled={!nuevoNombre.trim() || creandoEnProgreso}
               onClick={onCrearProducto}
             >
-              Crear y usar
+              Crear y agregar a la lista
             </Button>
             <Button
               type="button"
@@ -369,11 +357,183 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
         </div>
       )}
 
-      {serverMessage && (
-        <p role="alert" className="text-sm text-danger">
-          {serverMessage}
-        </p>
-      )}
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        {/* Agregar producto a la lista — mismo criterio que "venta libre" en
+            RegistrarVentaForm: se completan los campos de la línea y un
+            botón "Agregar" la suma al carrito, en vez de un <select> con
+            submit directo. */}
+        <div className="grid grid-cols-1 items-end gap-3 rounded border border-outline-variant p-3 sm:grid-cols-2 lg:grid-cols-4">
+          <FormField htmlFor="item-compra" label="Producto" className="lg:col-span-2">
+            <ProductoBuscador
+              id="item-compra"
+              productos={productos}
+              value={stagingItemId}
+              onChange={onSeleccionarStaging}
+            />
+          </FormField>
+          <FormField htmlFor="costo-unitario-staging" label="Costo unitario">
+            <Input
+              id="costo-unitario-staging"
+              value={stagingCosto}
+              onChange={(e) => setStagingCosto(e.target.value)}
+              inputMode="decimal"
+              placeholder="0"
+            />
+          </FormField>
+          <FormField htmlFor="cantidad-staging" label="Cantidad">
+            <Input
+              id="cantidad-staging"
+              value={stagingCantidad}
+              onChange={(e) => setStagingCantidad(e.target.value)}
+              inputMode="numeric"
+            />
+          </FormField>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!listoParaAgregar}
+            onClick={agregarLinea}
+            className="w-fit gap-1 sm:col-span-2 lg:col-span-4"
+          >
+            <Icon name="add" className="text-[18px]" />
+            Agregar a la lista
+          </Button>
+        </div>
+
+        {/* Lista/carrito de la compra — una o más líneas, todas registradas
+            juntas con el mismo proveedor/fecha/forma de pago/cuenta. */}
+        <div className="overflow-hidden rounded border border-outline-variant">
+          {lineas.length === 0 ? (
+            <p className="px-4 py-6 text-center text-body-md text-on-surface-variant">
+              Todavía no agregaste ningún producto a esta compra.
+            </p>
+          ) : (
+            <div className="flex flex-col divide-y divide-outline-variant">
+              {lineas.map((linea) => {
+                const item = itemPorId(linea.itemId);
+                const subtotal = new Decimal(linea.costoUnitario || "0").times(linea.cantidad || "0");
+                return (
+                  <div
+                    key={linea.id}
+                    className="flex flex-wrap items-end gap-2 bg-surface-container-lowest px-3 py-2"
+                  >
+                    <div className="min-w-[140px] flex-1">
+                      <p className="text-label-lg font-medium text-on-surface">
+                        {item ? etiquetaProducto(item) : "Producto"}
+                      </p>
+                    </div>
+                    <FormField htmlFor={`linea-costo-${linea.id}`} label="Costo unitario" className="w-28">
+                      <Input
+                        id={`linea-costo-${linea.id}`}
+                        value={linea.costoUnitario}
+                        onChange={(e) => actualizarLinea(linea.id, { costoUnitario: e.target.value })}
+                        inputMode="decimal"
+                      />
+                    </FormField>
+                    <FormField htmlFor={`linea-cantidad-${linea.id}`} label="Cantidad" className="w-24">
+                      <Input
+                        id={`linea-cantidad-${linea.id}`}
+                        value={linea.cantidad}
+                        onChange={(e) => actualizarLinea(linea.id, { cantidad: e.target.value })}
+                        inputMode="numeric"
+                        placeholder="0"
+                      />
+                    </FormField>
+                    <div className="w-28 text-right text-label-lg font-medium text-on-surface">
+                      {formatearMonto(subtotal.toString(), codigoMoneda(monedaId))}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => quitarLinea(linea.id)}
+                      aria-label="Quitar de la lista"
+                    >
+                      <Icon name="delete" className="text-[18px]" />
+                    </Button>
+                  </div>
+                );
+              })}
+              <div className="flex items-center justify-between bg-surface-container-low px-4 py-3">
+                <span className="text-label-lg font-semibold text-on-surface">
+                  Total ({lineas.length} {lineas.length === 1 ? "producto" : "productos"})
+                </span>
+                <span className="text-headline-sm font-bold text-on-surface">
+                  {formatearMonto(total.toString(), codigoMoneda(monedaId))}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Datos compartidos por toda la compra (proveedor/fecha/forma de
+            pago/cuenta) — se aplican a todas las líneas de la lista. */}
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <FormField htmlFor="fecha-compra" label="Fecha">
+            <Input
+              id="fecha-compra"
+              type="date"
+              value={fecha}
+              onChange={(e) => setFecha(e.target.value)}
+              required
+            />
+          </FormField>
+          <FormField htmlFor="proveedor-compra" label="Proveedor (opcional)">
+            <Input
+              id="proveedor-compra"
+              value={proveedor}
+              onChange={(e) => setProveedor(e.target.value)}
+            />
+          </FormField>
+          <FormField htmlFor="moneda-compra" label="Moneda">
+            <Select
+              id="moneda-compra"
+              value={monedaId}
+              onChange={(e) => setMonedaId(e.target.value)}
+              required
+            >
+              {monedas.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.codigo}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField htmlFor="forma-pago" label="Forma de pago">
+            <Select
+              id="forma-pago"
+              value={formaPago}
+              onChange={(e) => setFormaPago(e.target.value as Compra["formaPago"])}
+            >
+              {FORMAS_PAGO.map((fp) => (
+                <option key={fp} value={fp}>
+                  {fp}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          {formaPago !== "CREDITO_PROVEEDOR" && (
+            <CuentaFinancieraSelect
+              id="cuenta-financiera"
+              negocioId={negocioId}
+              tipo={formaPago === "TARJETA" ? "TARJETA" : formaPago === "BANCO" ? "BANCO" : "CAJA"}
+              value={cuentaFinancieraId}
+              onChange={setCuentaFinancieraId}
+              label="Cuenta financiera"
+            />
+          )}
+        </div>
+
+        <Button type="submit" disabled={isSubmitting || lineas.length === 0} className="w-fit">
+          Registrar compra
+        </Button>
+
+        {serverMessage && (
+          <p role="alert" className="text-sm text-danger">
+            {serverMessage}
+          </p>
+        )}
+      </form>
 
       {historial.length > 0 && (
         <div className="overflow-x-auto rounded border border-default">
