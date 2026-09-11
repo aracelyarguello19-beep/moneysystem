@@ -13,11 +13,20 @@ import { ProductoBuscador } from "@/components/producto-buscador";
 import { emitirInventarioCambiado, useInventarioCambiado } from "@/lib/inventario-events";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatearMonto } from "@/lib/moneda";
 
 const FORMAS_PAGO: Compra["formaPago"][] = ["EFECTIVO", "BANCO", "TARJETA", "CREDITO_PROVEEDOR"];
+
+interface VarianteCompraForm {
+  nroCalce: string;
+}
+
+function nuevaVarianteCompraVacia(): VarianteCompraForm {
+  return { nroCalce: "" };
+}
 
 // Carga diferida: `ImagenItemUpload` trae el cliente completo de
 // Supabase Storage, que no hace falta hasta que se abre el formulario de
@@ -54,10 +63,22 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
 
   const [creandoProducto, setCreandoProducto] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState("");
-  const [nuevoNroCalce, setNuevoNroCalce] = useState("");
+  const [variantes, setVariantes] = useState<VarianteCompraForm[]>([nuevaVarianteCompraVacia()]);
   const [nuevaImagenUrl, setNuevaImagenUrl] = useState<string | null>(null);
   const [nuevoMensaje, setNuevoMensaje] = useState<string | null>(null);
   const [creandoEnProgreso, setCreandoEnProgreso] = useState(false);
+
+  function actualizarVariante(index: number, valor: string) {
+    setVariantes((actuales) => actuales.map((v, i) => (i === index ? { nroCalce: valor } : v)));
+  }
+
+  function agregarVariante() {
+    setVariantes((actuales) => [...actuales, nuevaVarianteCompraVacia()]);
+  }
+
+  function quitarVariante(index: number) {
+    setVariantes((actuales) => (actuales.length > 1 ? actuales.filter((_, i) => i !== index) : actuales));
+  }
 
   const cargar = useCallback(async () => {
     const [itemsResult, monedasResult, historialResult] = await Promise.all([
@@ -83,32 +104,44 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
 
   useInventarioCambiado(cargar);
 
+  // Cada variante (nro de calce) declarada crea su propio Item, igual que en
+  // Inventario (ver item-catalogo.tsx) — todas arrancan con stock 0, es
+  // "Registrar compra" quien lo carga al confirmar, para no contar esta
+  // primera compra dos veces. El primer ítem creado queda seleccionado para
+  // esta compra; el resto queda en el catálogo listo para compras futuras.
   async function onCrearProducto() {
     setNuevoMensaje(null);
     setCreandoEnProgreso(true);
-    const result = await crearItem(negocioId, {
-      tipo: "PRODUCTO",
-      nombre: nuevoNombre,
-      precioVenta: "0",
-      monedaId,
-      // Stock arranca en 0: es "Registrar compra" quien lo carga al
-      // confirmar, para no contar esta primera compra dos veces.
-      costoCompra: costoUnitario || "0",
-      stockActual: "0",
-      nroCalce: nuevoNroCalce.trim() || undefined,
-      imagenUrl: nuevaImagenUrl ?? undefined,
-    });
-    setCreandoEnProgreso(false);
-    if (!result.ok) {
-      setNuevoMensaje(result.error.message);
-      return;
+    const idsCreados: string[] = [];
+    for (const variante of variantes) {
+      const result = await crearItem(negocioId, {
+        tipo: "PRODUCTO",
+        nombre: nuevoNombre,
+        precioVenta: "0",
+        monedaId,
+        costoCompra: costoUnitario || "0",
+        stockActual: "0",
+        nroCalce: variante.nroCalce.trim() || undefined,
+        imagenUrl: nuevaImagenUrl ?? undefined,
+      });
+      if (!result.ok) {
+        setNuevoMensaje(result.error.message);
+        setCreandoEnProgreso(false);
+        if (idsCreados.length > 0) {
+          await cargar();
+          emitirInventarioCambiado();
+        }
+        return;
+      }
+      idsCreados.push(result.data.id);
     }
+    setCreandoEnProgreso(false);
     await cargar();
     emitirInventarioCambiado();
-    setItemId(result.data.id);
+    setItemId(idsCreados[0]);
     setCreandoProducto(false);
     setNuevoNombre("");
-    setNuevoNroCalce("");
+    setVariantes([nuevaVarianteCompraVacia()]);
     setNuevaImagenUrl(null);
   }
 
@@ -264,18 +297,49 @@ export function CompraForm({ negocioId }: { negocioId: string }) {
               onChange={(e) => setNuevoNombre(e.target.value)}
             />
           </FormField>
-          <FormField htmlFor="nuevo-nro-calce-compra" label="Nro de calce (opcional)">
-            <Input
-              id="nuevo-nro-calce-compra"
-              value={nuevoNroCalce}
-              onChange={(e) => setNuevoNroCalce(e.target.value)}
-            />
-          </FormField>
           <FormField htmlFor="nueva-imagen-compra" label="Foto del producto (opcional)">
             <ImagenItemUpload value={nuevaImagenUrl} onChange={setNuevaImagenUrl} />
           </FormField>
+
+          <div className="flex flex-col gap-2 sm:col-span-2">
+            <p className="text-label-md font-semibold text-on-surface-variant">
+              Variantes (nro de calce)
+            </p>
+            {variantes.map((variante, index) => (
+              <div key={index} className="flex flex-wrap items-end gap-2">
+                <FormField
+                  htmlFor={`nuevo-nro-calce-compra-${index}`}
+                  label="Nro de calce (opcional)"
+                  className="w-40"
+                >
+                  <Input
+                    id={`nuevo-nro-calce-compra-${index}`}
+                    value={variante.nroCalce}
+                    onChange={(e) => actualizarVariante(index, e.target.value)}
+                  />
+                </FormField>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => quitarVariante(index)}
+                  disabled={variantes.length === 1}
+                  aria-label="Quitar variante"
+                >
+                  <Icon name="close" className="text-[16px]" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={agregarVariante} className="w-fit gap-1">
+              <Icon name="add" className="text-[16px]" />
+              Agregar variante
+            </Button>
+          </div>
+
           <p className="text-xs text-muted sm:col-span-2">
             El costo unitario cargado arriba ({costoUnitario || "0"}) queda como su costo inicial.
+            {variantes.length > 1 &&
+              " Se va a crear un producto por cada variante; la primera queda seleccionada para esta compra."}
           </p>
           <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
             <Button
