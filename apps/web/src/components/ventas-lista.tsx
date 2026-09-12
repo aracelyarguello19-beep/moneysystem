@@ -110,8 +110,16 @@ export function VentasLista({ negocioId }: { negocioId: string }) {
               )}
             </p>
             <div className="flex flex-wrap items-center gap-3 sm:shrink-0">
-              <span className="text-sm font-semibold text-success">
-                +
+              {/* Una venta CANCELADA no sumó ni restó nada en definitiva
+                  (se devolvió todo) — el monto se muestra neutro, sin "+" ni
+                  color de ingreso, para no leerse como plata que sigue
+                  entrando. */}
+              <span
+                className={`text-sm font-semibold ${
+                  venta.estado === "CANCELADA" ? "text-on-surface-variant" : "text-success"
+                }`}
+              >
+                {venta.estado !== "CANCELADA" && "+"}
                 {formatearMonto(
                   calcularTotalVenta(
                     venta.items.map((item) => ({
