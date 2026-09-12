@@ -806,18 +806,9 @@ export function RegistrarVentaForm({
           </div>
 
           <div className="flex flex-col gap-3 p-4 sm:p-5">
-            <div className="flex justify-between text-body-md">
+            <div className="flex justify-between border-b border-outline-variant pb-3 text-body-md">
               <span className="text-on-surface-variant">Subtotal ({lineas.length} ítems)</span>
               <span className="text-on-surface">{formatearMonto(subtotal, codigoMonedaBase)}</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-outline-variant pb-3 text-body-md">
-              <span className="text-on-surface-variant">Impuesto</span>
-              <Input
-                aria-label="Impuesto"
-                value={impuesto}
-                onChange={(e) => setImpuesto(e.target.value)}
-                className="h-8 w-24 text-right"
-              />
             </div>
             <div className="flex items-center justify-between">
               <span className="text-headline-sm font-semibold text-on-surface">Total</span>
@@ -888,10 +879,9 @@ export function RegistrarVentaForm({
 
         {/* Métodos de cobro — mismo bento 2x2 que Stitch, mapeado 1:1 a
             nuestro dominio `formaCobro` (EFECTIVO/TARJETA/BANCO/CREDITO_CLIENTE).
-            Transferencia y Tarjeta preguntan a qué cuenta (caja/banco) entra
-            el dinero — a pedido, puede ir a cuentas distintas en cada caso.
-            Efectivo no pregunta cuenta (siempre la caja de la moneda
-            elegida arriba) y Crédito tampoco (no entra dinero todavía). */}
+            Todos excepto Crédito preguntan a qué cuenta entra el dinero
+            (caja/banco) — a pedido, puede haber más de una caja o cuenta
+            receptora. Crédito no pregunta porque no entra dinero todavía. */}
         <div className="flex flex-col gap-2">
           {/* Botones más chicos y horizontales en mobile/tablet (a pedido) —
               apilado grande (ícono arriba, texto abajo) recién desde `lg`,
@@ -915,21 +905,22 @@ export function RegistrarVentaForm({
             ))}
           </div>
 
-          {(formaCobro === "BANCO" || formaCobro === "TARJETA") && (
+          {formaCobro !== "CREDITO_CLIENTE" && (
             <Card className="flex flex-col gap-2 border-secondary/40 bg-secondary-container/20 p-3">
               {(() => {
                 const candidatas = cuentasCajaYBanco.filter((c) => c.monedaId === monedaId);
+                const label =
+                  formaCobro === "BANCO"
+                    ? "¿A qué cuenta entra la transferencia?"
+                    : formaCobro === "TARJETA"
+                      ? "¿A qué cuenta entra el pago con tarjeta?"
+                      : "¿A qué caja entra el efectivo?";
                 return candidatas.length === 0 ? (
                   <p className="text-label-md text-warning-text">
                     No hay cuentas en {monedaSeleccionada?.codigo ?? "esa moneda"} — creá una en Caja.
                   </p>
                 ) : (
-                  <FormField
-                    htmlFor="cuenta-financiera-venta"
-                    label={
-                      formaCobro === "BANCO" ? "¿A qué cuenta entra la transferencia?" : "¿A qué cuenta entra el pago con tarjeta?"
-                    }
-                  >
+                  <FormField htmlFor="cuenta-financiera-venta" label={label}>
                     <Select
                       id="cuenta-financiera-venta"
                       value={cuentaFinancieraId}
@@ -949,8 +940,14 @@ export function RegistrarVentaForm({
           )}
         </div>
 
-        <Button type="submit" disabled={isSubmitting} className="w-full py-4 text-headline-sm">
-          Registrar venta
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          className="flex w-full items-center justify-center gap-2 py-4 text-headline-sm"
+        >
+          <Icon name="point_of_sale" className="text-[22px]" />
+          <span>Registrar venta</span>
+          <span className="ml-auto">{formatearMonto(total, codigoMonedaBase)}</span>
         </Button>
 
         {serverMessage && (
