@@ -518,11 +518,15 @@ export function RegistrarVentaForm({
 
       {/* Barra fija de carrito — solo mobile/tablet (`lg:hidden`): toca para
           abrir el resumen como hoja inferior. En desktop el resumen ya está
-          siempre visible al costado, así que la barra no hace falta ahí. */}
+          siempre visible al costado, así que la barra no hace falta ahí.
+          `md:left-sidebar-width-expanded md:w-[calc(100%-230px)]`: en una
+          tablet el menú lateral completo ya se ve desde `md` (`app-sidebar`)
+          — sin este ajuste la barra usaba `inset-x-0` (todo el viewport) y
+          quedaba tapada a medias por el menú, que tiene más z-index. */}
       <button
         type="button"
         onClick={() => setResumenAbierto(true)}
-        className={`fixed inset-x-0 bottom-0 z-20 flex items-center justify-center gap-2 border-t border-outline-variant bg-primary px-4 py-3 text-on-primary shadow-lg lg:hidden ${
+        className={`fixed inset-x-0 bottom-0 z-20 flex items-center justify-center gap-2 border-t border-outline-variant bg-primary px-4 py-3 text-on-primary shadow-lg md:left-sidebar-width-expanded md:w-[calc(100%-230px)] lg:hidden ${
           resumenAbierto ? "hidden" : ""
         }`}
       >
@@ -550,7 +554,7 @@ export function RegistrarVentaForm({
           nodo del DOM en los dos casos, solo cambian las clases —
           evita duplicar todo este bloque con ids repetidos). */}
       <div
-        className={`z-40 flex w-full flex-col gap-4 bg-surface-container-lowest transition-transform duration-300 ease-out lg:static lg:z-auto lg:w-[380px] lg:translate-y-0 lg:bg-transparent lg:transition-none ${
+        className={`z-40 flex w-full flex-col gap-4 bg-surface-container-lowest transition-transform duration-300 ease-out md:left-sidebar-width-expanded md:w-[calc(100%-230px)] lg:static lg:z-auto lg:left-auto lg:w-[380px] lg:translate-y-0 lg:bg-transparent lg:transition-none ${
           resumenAbierto
             ? "fixed inset-x-0 bottom-0 max-h-[85dvh] translate-y-0 overflow-y-auto rounded-t-2xl border-t border-outline-variant p-4 shadow-lg"
             : "fixed inset-x-0 bottom-0 max-h-[85dvh] translate-y-full overflow-y-auto rounded-t-2xl border-t border-outline-variant p-4 shadow-lg lg:max-h-none lg:overflow-visible lg:rounded-none lg:border-0 lg:p-0 lg:shadow-none"
@@ -843,7 +847,12 @@ export function RegistrarVentaForm({
           </p>
         )}
 
-        {historial}
+        {/* Historial solo en desktop — a pedido, en mobile no debe estar (ni
+            siquiera dentro de la hoja del resumen): `hidden` lo saca del
+            flujo por completo ahí, `lg:contents` en desktop hace que sus
+            hijos se comporten como si no hubiera wrapper (no rompe el
+            `gap` del flex de la columna). */}
+        <div className="hidden lg:contents">{historial}</div>
       </div>
     </form>
   );
