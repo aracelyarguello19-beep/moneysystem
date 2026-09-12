@@ -885,9 +885,11 @@ export function RegistrarVentaForm({
 
         {/* Métodos de cobro — mismo bento 2x2 que Stitch, mapeado 1:1 a
             nuestro dominio `formaCobro` (EFECTIVO/TARJETA/BANCO/CREDITO_CLIENTE).
-            Todos excepto Crédito preguntan a qué cuenta entra el dinero
-            (caja/banco) — a pedido, puede haber más de una caja o cuenta
-            receptora. Crédito no pregunta porque no entra dinero todavía. */}
+            Transferencia y Tarjeta preguntan a qué cuenta entra el dinero
+            (puede haber más de una cuenta bancaria receptora). Efectivo no
+            pregunta cuenta — a pedido, ya eligió la moneda arriba y esa
+            decide la caja (se preselecciona sola); Crédito tampoco pregunta
+            porque no entra dinero todavía. */}
         <div className="flex flex-col gap-2">
           {/* Botones más chicos y horizontales en mobile/tablet (a pedido) —
               apilado grande (ícono arriba, texto abajo) recién desde `lg`,
@@ -911,7 +913,7 @@ export function RegistrarVentaForm({
             ))}
           </div>
 
-          {formaCobro !== "CREDITO_CLIENTE" && (
+          {(formaCobro === "BANCO" || formaCobro === "TARJETA") && (
             <Card className="flex flex-col gap-2 border-secondary/40 bg-secondary-container/20 p-3">
               {(() => {
                 const candidatas = cuentasCajaYBanco.filter(
@@ -920,9 +922,7 @@ export function RegistrarVentaForm({
                 const label =
                   formaCobro === "BANCO"
                     ? "¿A qué cuenta entra la transferencia?"
-                    : formaCobro === "TARJETA"
-                      ? "¿A qué cuenta entra el pago con tarjeta?"
-                      : "¿A qué caja entra el efectivo?";
+                    : "¿A qué cuenta entra el pago con tarjeta?";
                 return candidatas.length === 0 ? (
                   <p className="text-label-md text-warning-text">
                     No hay cuentas en {monedaSeleccionada?.codigo ?? "esa moneda"} — creá una en Caja.
