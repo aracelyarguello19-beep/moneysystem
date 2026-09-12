@@ -8,6 +8,7 @@ import {
   assertCostoServicioValido,
   assertCuentaFinancieraEsTarjeta,
   assertCuentaFinancieraNoEsTarjeta,
+  assertStockSuficiente,
   calcularCostoPromedioPonderado,
   calcularTotalVenta,
 } from "@repo/domain";
@@ -93,6 +94,31 @@ export const registrarVenta = withErrorHandling(
           formaPagoProveedor: ventaItem.formaPagoProveedor,
           cuentaFinancieraProveedorId: ventaItem.cuentaFinancieraProveedorId,
         });
+      }
+
+      // AC3 (venta descuenta stock): valida ANTES de crear nada que el
+      // stock alcanza para lo pedido — sumando por ítem, no línea por
+      // línea, porque dos líneas de 1 unidad contra un stock de 1 también
+      // tienen que rechazarse. La UI (RegistrarVentaForm) ya evita este
+      // caso acumulando en una sola línea y topando el selector al stock
+      // disponible, pero esta es la barrera real: sin ella, otra sesión, un
+      // cliente HTTP directo, o simplemente una carrera entre dos ventas
+      // simultáneas del mismo ítem podían dejarlo en stock negativo.
+      const cantidadPedidaPorItem = new Map<string, Prisma.Decimal>();
+      for (const ir of itemsResueltos) {
+        if (ir.itemId && ir.tipo === "PRODUCTO" && !ir.esLibre && ir.cantidad) {
+          cantidadPedidaPorItem.set(
+            ir.itemId,
+            (cantidadPedidaPorItem.get(ir.itemId) ?? new Prisma.Decimal(0)).plus(ir.cantidad)
+          );
+        }
+      }
+      for (const [itemId, cantidadPedida] of cantidadPedidaPorItem) {
+        const itemCatalogo = await tx.item.findUniqueOrThrow({ where: { id: itemId } });
+        assertStockSuficiente(
+          { nombre: itemCatalogo.nombre, stockActual: itemCatalogo.stockActual.toString() },
+          cantidadPedida.toString()
+        );
       }
 
       // El carrito/total de la venta siempre quedan en la moneda base

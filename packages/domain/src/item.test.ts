@@ -2,11 +2,29 @@ import { describe, expect, it } from "vitest";
 import {
   assertCambioDeTipoPermitido,
   assertItemEliminable,
+  assertStockSuficiente,
   calcularCostoPromedioPonderado,
   calcularGananciaProducto,
   ItemConMovimientosError,
+  StockInsuficienteError,
   TipoItemBloqueadoError,
 } from "./item";
+
+describe("assertStockSuficiente", () => {
+  it("no lanza cuando la cantidad pedida es menor al stock", () => {
+    expect(() => assertStockSuficiente({ nombre: "Zapatilla", stockActual: "5" }, "3")).not.toThrow();
+  });
+
+  it("no lanza cuando la cantidad pedida es igual al stock", () => {
+    expect(() => assertStockSuficiente({ nombre: "Zapatilla", stockActual: "1" }, "1")).not.toThrow();
+  });
+
+  it("lanza cuando la cantidad pedida supera el stock", () => {
+    expect(() => assertStockSuficiente({ nombre: "Zapatilla", stockActual: "1" }, "2")).toThrow(
+      StockInsuficienteError
+    );
+  });
+});
 
 describe("assertCambioDeTipoPermitido", () => {
   it("permite cambiar el tipo si no tiene movimientos", () => {

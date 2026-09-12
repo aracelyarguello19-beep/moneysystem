@@ -59,6 +59,29 @@ export function assertCambioDeTipoPermitido(
   }
 }
 
+export class StockInsuficienteError extends Error {
+  constructor(nombre: string, disponible: string) {
+    super(`No hay stock suficiente de "${nombre}" (disponible: ${disponible}).`);
+    this.name = "StockInsuficienteError";
+  }
+}
+
+// A pedido: sin esto, el cliente podía agregar el mismo producto varias
+// veces al carrito (una línea por click, en vez de acumular cantidad en
+// una sola) y la venta se registraba igual aunque la suma pedida superara
+// el stock real — dejando el ítem en stock negativo. Se valida acá, sumando
+// TODA la cantidad pedida de un mismo ítem en la venta (no línea por línea:
+// dos líneas de 1 unidad cada una contra un stock de 1 también deben
+// rechazarse).
+export function assertStockSuficiente(
+  item: Pick<Item, "nombre" | "stockActual">,
+  cantidadSolicitada: string
+): void {
+  if (new Decimal(cantidadSolicitada).greaterThan(item.stockActual)) {
+    throw new StockInsuficienteError(item.nombre, item.stockActual);
+  }
+}
+
 export interface GananciaProducto {
   ganancia: string;
   margen: string; // porcentaje sobre el precio de venta — mismo criterio que `margenGanancia` en Indicadores (Story 5.1), nunca sobre el costo

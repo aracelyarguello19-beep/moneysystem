@@ -110,6 +110,19 @@ export function RegistrarVentaForm({
   // abre, tocar el fondo o su botón de cerrar lo cierra.
   const [resumenAbierto, setResumenAbierto] = useState(false);
 
+  // Bloquea el scroll de la página de fondo mientras la hoja está abierta —
+  // sin esto, un swipe sobre la hoja (o su fondo oscuro) terminaba
+  // scrolleando el catálogo detrás en vez del contenido de la hoja, porque
+  // el body seguía siendo el único elemento realmente scrolleable ahí.
+  useEffect(() => {
+    if (!resumenAbierto) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, [resumenAbierto]);
+
   const [libreAbierta, setLibreAbierta] = useState(false);
   const [libreTexto, setLibreTexto] = useState("");
   const [libreItemId, setLibreItemId] = useState<string | null>(null);
@@ -207,20 +220,49 @@ export function RegistrarVentaForm({
     return itemId ? items.find((i) => i.id === itemId) : undefined;
   }
 
+  // Cuánto de este ítem ya está pedido en el carrito — suma todas las
+  // líneas que lo referencian (nunca debería haber más de una por ítem
+  // desde que agregarDesdeInventario acumula en vez de duplicar, pero suma
+  // por las dudas). `excluirLineaId` sirve para "cuánto piden las OTRAS
+  // líneas", al validar el tope de esta línea puntual (el stepper +).
+  function cantidadEnCarrito(itemId: string, excluirLineaId?: string): number {
+    return lineas
+      .filter((l) => l.itemId === itemId && !l.esLibre && l.id !== excluirLineaId)
+      .reduce((acc, l) => acc + Number(l.cantidad || "0"), 0);
+  }
+
+  // A pedido: clickear un producto que YA está en el carrito suma 1 a esa
+  // misma línea en vez de agregar una línea duplicada — solo productos
+  // DISTINTOS van en líneas separadas. Además nunca deja pedir más de lo
+  // que hay en stock (antes no había ningún tope: clickear varias veces un
+  // ítem con 1 sola unidad igual sumaba líneas, y la venta se registraba
+  // dejando el stock en negativo).
   function agregarDesdeInventario(item: Item) {
-    setLineas((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        itemId: item.id,
-        nombreLibre: null,
-        cantidad: item.tipo === "PRODUCTO" ? "1" : "",
-        precioUnitario: item.precioVenta,
-        costoServicio: "",
-        esLibre: false,
-        costoUnitario: "",
-      },
-    ]);
+    if (item.tipo === "PRODUCTO" && cantidadEnCarrito(item.id) >= Number(item.stockActual)) {
+      return;
+    }
+
+    setLineas((prev) => {
+      const existente = item.tipo === "PRODUCTO" ? prev.find((l) => l.itemId === item.id && !l.esLibre) : undefined;
+      if (existente) {
+        return prev.map((l) =>
+          l.id === existente.id ? { ...l, cantidad: new Decimal(l.cantidad || "0").plus(1).toString() } : l
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          itemId: item.id,
+          nombreLibre: null,
+          cantidad: item.tipo === "PRODUCTO" ? "1" : "",
+          precioUnitario: item.precioVenta,
+          costoServicio: "",
+          esLibre: false,
+          costoUnitario: "",
+        },
+      ];
+    });
   }
 
   const libreListoParaAgregar =
@@ -450,7 +492,14 @@ export function RegistrarVentaForm({
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
               {productosFiltrados.map((item) => {
                 const stock = Number(item.stockActual);
-                const stockVariant = stock <= 0 ? "danger" : stock <= 5 ? "warning" : "success";
+                // Cuánto queda para agregar, descontando lo que ya pedimos
+                // de este mismo ítem en el carrito — no lo que hay en el
+                // depósito a secas. Con 1 en stock y ya 1 en el carrito, acá
+                // da 0: la tarjeta se deshabilita y avisa "Sin stock", en
+                // vez de dejar seguir clickeando y sumar de más.
+                const disponible = stock - cantidadEnCarrito(item.id);
+                const sinStockDisponible = item.tipo === "PRODUCTO" && disponible <= 0;
+                const stockVariant = disponible <= 0 ? "danger" : disponible <= 5 ? "warning" : "success";
                 // Persistente mientras el producto siga en la lista de la
                 // venta — antes era un flash de 900ms que se apagaba solo,
                 // y a pedido tiene que quedar marcado hasta que se saque del
@@ -460,10 +509,11 @@ export function RegistrarVentaForm({
                   <button
                     key={item.id}
                     type="button"
+                    disabled={sinStockDisponible}
                     onClick={() => agregarDesdeInventario(item)}
-                    className={`relative overflow-hidden rounded-xl border bg-surface-container-lowest text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-tertiary hover:shadow-md ${
-                      enCarrito ? "border-success ring-2 ring-success" : "border-outline-variant"
-                    }`}
+                    className={`relative overflow-hidden rounded-xl border bg-surface-container-lowest text-left shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-sm ${
+                      sinStockDisponible ? "" : "hover:-translate-y-0.5 hover:border-tertiary hover:shadow-md"
+                    } ${enCarrito ? "border-success ring-2 ring-success" : "border-outline-variant"}`}
                   >
                     {enCarrito && (
                       <span className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-success text-white shadow">
@@ -484,7 +534,7 @@ export function RegistrarVentaForm({
                         {formatearMonto(item.precioVenta, codigoMonedaBase)}
                       </p>
                       <Badge variant={stockVariant} className="self-start normal-case">
-                        {item.stockActual} en stock
+                        {sinStockDisponible ? "Sin stock" : `${disponible} disponible${disponible === 1 ? "" : "s"}`}
                       </Badge>
                     </div>
                   </button>
@@ -556,8 +606,8 @@ export function RegistrarVentaForm({
       <div
         className={`z-40 flex w-full flex-col gap-4 bg-surface-container-lowest transition-transform duration-300 ease-out md:left-sidebar-width-expanded md:w-[calc(100%-230px)] lg:static lg:z-auto lg:left-auto lg:w-[380px] lg:translate-y-0 lg:bg-transparent lg:transition-none ${
           resumenAbierto
-            ? "fixed inset-x-0 bottom-0 max-h-[85dvh] translate-y-0 overflow-y-auto rounded-t-2xl border-t border-outline-variant p-4 shadow-lg"
-            : "fixed inset-x-0 bottom-0 max-h-[85dvh] translate-y-full overflow-y-auto rounded-t-2xl border-t border-outline-variant p-4 shadow-lg lg:max-h-none lg:overflow-visible lg:rounded-none lg:border-0 lg:p-0 lg:shadow-none"
+            ? "fixed inset-x-0 bottom-0 max-h-[85dvh] translate-y-0 overflow-y-auto overscroll-contain rounded-t-2xl border-t border-outline-variant p-4 shadow-lg"
+            : "fixed inset-x-0 bottom-0 max-h-[85dvh] translate-y-full overflow-y-auto overscroll-contain rounded-t-2xl border-t border-outline-variant p-4 shadow-lg lg:max-h-none lg:overflow-visible lg:rounded-none lg:border-0 lg:p-0 lg:shadow-none"
         }`}
       >
         {/* Agarradera + cerrar — solo tienen sentido en la hoja mobile. */}
@@ -585,7 +635,14 @@ export function RegistrarVentaForm({
               columna ancha): este resumen es angosto tanto en mobile como en
               desktop (~380px fijos), así que un layout en grilla pensado
               para una columna ancha quedaba con las celdas encimadas. */}
-          <div className="flex max-h-72 flex-col divide-y divide-outline-variant overflow-y-auto border-y border-outline-variant">
+          {/* Sin tope de altura propio en mobile (solo en desktop, `lg:`):
+              ahí la hoja entera ya scrollea como una sola pieza, y un
+              scroll anidado además del de la hoja es justo el tipo de cosa
+              que en mobile Safari puede terminar clipeando o "perdiendo"
+              contenido — más simple y más confiable dejar que fluya con el
+              resto. En desktop sí conviene: mantiene el cobro/submit a la
+              vista sin tener que scrollear toda la página. */}
+          <div className="flex flex-col divide-y divide-outline-variant border-y border-outline-variant lg:max-h-72 lg:overflow-y-auto">
             {lineas.length === 0 && (
               <p className="px-4 py-6 text-center text-body-md text-on-surface-variant">
                 Todavía no agregaste ningún ítem.
@@ -675,12 +732,27 @@ export function RegistrarVentaForm({
                         />
                         <button
                           type="button"
-                          className="p-1 text-on-surface-variant transition-colors hover:bg-surface-container-high"
-                          onClick={() =>
+                          className="p-1 text-on-surface-variant transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-40"
+                          disabled={
+                            !linea.esLibre &&
+                            item?.tipo === "PRODUCTO" &&
+                            new Decimal(linea.cantidad || "0").greaterThanOrEqualTo(item.stockActual)
+                          }
+                          onClick={() => {
+                            // Mismo tope que al agregar desde el catálogo: no
+                            // deja subir la cantidad de esta línea más allá
+                            // del stock real del ítem.
+                            if (
+                              !linea.esLibre &&
+                              item?.tipo === "PRODUCTO" &&
+                              new Decimal(linea.cantidad || "0").greaterThanOrEqualTo(item.stockActual)
+                            ) {
+                              return;
+                            }
                             actualizarLinea(linea.id, {
                               cantidad: new Decimal(linea.cantidad || "0").plus(1).toString(),
-                            })
-                          }
+                            });
+                          }}
                         >
                           <Icon name="add" className="text-[16px]" />
                         </button>
