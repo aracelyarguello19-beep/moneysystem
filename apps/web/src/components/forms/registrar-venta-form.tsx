@@ -894,20 +894,20 @@ export function RegistrarVentaForm({
               apilado grande (ícono arriba, texto abajo) recién desde `lg`,
               donde hay más lugar; por debajo, ícono + texto en una fila
               compacta ocupan menos alto dentro de la hoja del resumen. */}
-          <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
+          <div className="grid grid-cols-4 gap-1.5 lg:gap-2">
             {FORMAS_COBRO.map((fc) => (
               <button
                 key={fc.value}
                 type="button"
                 onClick={() => setFormaCobro(fc.value)}
-                className={`flex items-center justify-center gap-1.5 rounded border p-2 text-label-md transition-colors lg:flex-col lg:gap-1 lg:p-3 ${
+                className={`flex flex-col items-center justify-center gap-1 rounded border p-1.5 text-[10px] transition-colors lg:gap-1 lg:p-3 lg:text-label-md ${
                   formaCobro === fc.value
                     ? COLOR_SELECCION[fc.value]
                     : "border-outline-variant bg-surface text-on-surface hover:border-tertiary"
                 }`}
               >
                 <Icon name={fc.icon} className="text-[16px] lg:text-[20px]" />
-                <span>{fc.label}</span>
+                <span className="text-center leading-tight">{fc.label}</span>
               </button>
             ))}
           </div>
