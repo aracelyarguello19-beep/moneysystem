@@ -34,6 +34,7 @@ const dashboardDataBase = {
   metaMinimaDiaria: null,
   saldosPorMoneda: [],
   valorTotalCajaGs: "0",
+  valorTotalNegocio: "0",
   monedasSinCotizacion: [],
   tendencia: [],
   items: [],

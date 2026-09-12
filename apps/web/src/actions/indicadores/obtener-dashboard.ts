@@ -55,6 +55,11 @@ export interface DashboardData {
   // `monedasSinCotizacion` y no se suman al total, para no computar con un
   // 0 implícito.
   valorTotalCajaGs: string;
+  // "Valor total del negocio" = plata disponible (`valorTotalCajaGs`) +
+  // mercadería en stock (`valorInventario`) — la tarjeta principal del
+  // dashboard, a pedido: antes solo mostraba el efectivo/banco, sin contar
+  // el inventario como parte del patrimonio del negocio.
+  valorTotalNegocio: string;
   monedasSinCotizacion: string[];
   tendencia: PuntoTendencia[];
   items: Item[];
@@ -335,6 +340,7 @@ export const obtenerDashboard = withErrorHandling(
         metaMinimaDiaria,
         saldosPorMoneda,
         valorTotalCajaGs: valorTotalCajaGs.toString(),
+        valorTotalNegocio: valorTotalCajaGs.plus(valorInventario).toString(),
         monedasSinCotizacion,
         tendencia,
         items,

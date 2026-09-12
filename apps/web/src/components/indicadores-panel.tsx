@@ -128,8 +128,9 @@ export function IndicadoresPanel({ negocioId }: { negocioId: string }) {
               spotlight
               tone="primary"
               icon={<Icon name="account_balance_wallet" fill />}
-              label="Valor total en caja"
-              value={v(formatearMonto(data.valorTotalCajaGs))}
+              label="Valor total del negocio"
+              value={v(formatearMonto(data.valorTotalNegocio))}
+              caption={`Efectivo: ${v(formatearMonto(data.valorTotalCajaGs))} · Mercadería: ${v(formatearMonto(data.valorInventario))}`}
             />
           )}
           {data.monedasSinCotizacion.length > 0 && (
@@ -139,6 +140,14 @@ export function IndicadoresPanel({ negocioId }: { negocioId: string }) {
             </p>
           )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {data.saldosPorMoneda.length > 0 && (
+              <StatCard
+                icon={<Icon name="account_balance_wallet" />}
+                tone="primary"
+                label="Total en caja"
+                value={v(formatearMonto(data.valorTotalCajaGs))}
+              />
+            )}
             {data.saldosPorMoneda.map((s, i) => (
               <StatCard
                 key={s.codigo}
