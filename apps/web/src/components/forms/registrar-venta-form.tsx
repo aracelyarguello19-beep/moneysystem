@@ -654,7 +654,7 @@ export function RegistrarVentaForm({
             <Icon name="close" />
           </button>
         </div>
-        <Card className="flex flex-col gap-0 overflow-hidden p-0">
+        <Card className="flex shrink-0 flex-col gap-0 overflow-hidden p-0">
           <CardHeader className="px-4 pt-4 sm:px-5 sm:pt-5">
             <CardTitle>Resumen de venta</CardTitle>
           </CardHeader>
