@@ -601,12 +601,13 @@ export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
                   <div className="flex items-center justify-between gap-2 text-label-lg font-medium text-on-surface sm:col-span-2 sm:justify-end">
                     <span className="text-label-md font-normal text-on-surface-variant sm:hidden">Total</span>
                     {formatearMonto(lineaTotal, codigoMonedaBase)}
-                    {/* Sin hover en touch: el botón de borrar tiene que estar
-                        visible desde el vamos en mobile o la línea no se puede
-                        quitar. El fade por hover queda solo de `sm` para arriba. */}
+                    {/* `pointer-fine` (mouse/trackpad), no un breakpoint de
+                        ancho: una tablet táctil no dispara `:hover` aunque su
+                        pantalla sea ancha, y el botón de borrar tiene que
+                        seguir siendo alcanzable ahí igual que en el celular. */}
                     <button
                       type="button"
-                      className="text-error transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+                      className="text-error transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100"
                       onClick={() => quitarLinea(linea.id)}
                       aria-label="Quitar"
                     >

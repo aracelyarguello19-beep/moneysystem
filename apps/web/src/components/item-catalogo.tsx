@@ -294,13 +294,16 @@ export function ItemCatalogo({
         </p>
       )}
 
-      {/* Tarjetas apiladas — solo hasta `sm`: la tabla de acá abajo tiene 10
-          columnas con `min-w-[900px]`, así que en mobile "Editar"/"Eliminar"
-          (la última columna) quedaban fuera de pantalla, alcanzables solo
-          scrolleando horizontal sin ningún indicio de que hiciera falta.
-          Mismo criterio que gastos-lista.tsx/gasto-fijo-panel.tsx: en mobile
-          la lista se apila en tarjetas con los botones siempre a la vista. */}
-      <ul className="flex flex-col divide-y divide-outline-variant sm:hidden">
+      {/* Tarjetas apiladas — se muestran salvo que haya `pointer-fine`
+          (mouse/trackpad), NO por ancho de pantalla: la tabla de acá abajo
+          tiene 10 columnas con `min-w-[900px]` más el sidebar fijo, así que
+          hasta en una tablet ancha (táctil, sin mouse) "Editar"/"Eliminar"
+          quedaban fuera de pantalla, alcanzables solo scrolleando horizontal
+          sin ningún indicio — un corte por `sm`/`md` no alcanza porque una
+          tablet puede ser tan ancha como una laptop. Mismo criterio que
+          gastos-lista.tsx/gasto-fijo-panel.tsx: se apila en tarjetas con los
+          botones siempre a la vista en cualquier dispositivo táctil. */}
+      <ul className="flex flex-col divide-y divide-outline-variant pointer-fine:hidden">
         {filtrados.map((item) =>
           editandoId === item.id ? (
             <li key={item.id} className="bg-surface-container-low p-3">
@@ -380,7 +383,7 @@ export function ItemCatalogo({
         )}
       </ul>
 
-      <div className="hidden overflow-x-auto sm:block">
+      <div className="hidden overflow-x-auto pointer-fine:block">
         <table className="w-full min-w-[900px] border-collapse text-left">
           <thead className="bg-surface-container">
             <tr>
@@ -475,10 +478,11 @@ export function ItemCatalogo({
                     </Badge>
                   </td>
                   <td className="px-4 py-3">
-                    {/* Sin `opacity-0` en mobile: en touch no hay hover, así que los
-                        botones quedarían permanentemente invisibles (mismo criterio
-                        que caja-panel.tsx). */}
-                    <div className="flex items-center justify-center gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                    {/* Sin condición de hover acá: esta tabla entera ya solo
+                        se muestra para `pointer-fine` (ver el wrapper de
+                        arriba), así que cualquier dispositivo que la vea
+                        puede hacer hover de verdad. */}
+                    <div className="flex items-center justify-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                       <Button
                         type="button"
                         variant="ghost"
@@ -536,9 +540,9 @@ function ItemEditarFila(props: {
   );
 }
 
-// Campos de edición, compartidos entre la fila de tabla (desktop) y la
-// tarjeta apilada (mobile, `sm:hidden` en ItemCatalogo) — mismo formulario,
-// dos contenedores distintos.
+// Campos de edición, compartidos entre la fila de tabla (pointer-fine) y la
+// tarjeta apilada (táctil, `pointer-fine:hidden` en ItemCatalogo) — mismo
+// formulario, dos contenedores distintos.
 function ItemEditarCampos({
   item,
   negocioId,

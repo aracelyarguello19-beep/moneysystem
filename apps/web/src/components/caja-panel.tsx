@@ -423,9 +423,12 @@ function CuentaCard({
 
   return (
     <div className="group relative flex flex-col gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest p-4 transition-shadow hover:shadow-md">
-      {/* Sin `opacity-0` en mobile: en touch no hay hover, así que los botones
-          quedaban permanentemente invisibles. El fade arranca en `md`. */}
-      <div className="absolute right-2 top-2 flex gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+      {/* `pointer-fine` (mouse/trackpad), no un breakpoint de ancho: una
+          tablet táctil puede ser tan ancha como una laptop y nunca dispara
+          `:hover`, así que un corte por `md`/`sm` la dejaba con los botones
+          invisibles igual. Con `pointer-fine` el fade-por-hover solo aplica
+          en dispositivos que de verdad pueden hacer hover. */}
+      <div className="absolute right-2 top-2 flex gap-1 transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100">
         <button
           type="button"
           onClick={() => {
@@ -639,9 +642,10 @@ function TarjetaCard({
 
   return (
     <div className="group relative flex flex-col gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest p-4 transition-shadow hover:shadow-md sm:col-span-2 lg:col-span-1">
-      {/* Mismo criterio que la card de cuenta: sin hover en touch, los botones
-          no pueden depender de `group-hover` para ser visibles. */}
-      <div className="absolute right-2 top-2 flex gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+      {/* Mismo criterio que la card de cuenta: `pointer-fine`, no un
+          breakpoint de ancho — una tablet táctil no tiene hover aunque su
+          pantalla sea "de escritorio". */}
+      <div className="absolute right-2 top-2 flex gap-1 transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100">
         <button
           type="button"
           onClick={() => {
