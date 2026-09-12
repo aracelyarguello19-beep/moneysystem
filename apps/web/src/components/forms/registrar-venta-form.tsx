@@ -833,11 +833,17 @@ export function RegistrarVentaForm({
                   <>
                     <FormField htmlFor="moneda-venta" label="¿En qué moneda pagó?">
                       <Select id="moneda-venta" value={monedaId} onChange={(e) => setMonedaId(e.target.value)}>
-                        {monedas.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.esBase ? `${m.codigo} (oficial)` : m.codigo}
-                          </option>
-                        ))}
+                        {/* Solo las monedas que tienen una caja registrada en
+                            Caja — elegir una sin caja propia dejaría al
+                            selector de cuenta de más abajo sin nada para
+                            mostrar. */}
+                        {monedas
+                          .filter((m) => cuentasFinancieras.some((c) => c.tipo === "CAJA" && c.monedaId === m.id))
+                          .map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.esBase ? `${m.codigo} (oficial)` : m.codigo}
+                            </option>
+                          ))}
                       </Select>
                     </FormField>
 
