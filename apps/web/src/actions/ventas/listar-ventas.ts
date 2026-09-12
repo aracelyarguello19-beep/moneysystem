@@ -1,6 +1,6 @@
 "use server";
 
-import type { Item, Venta, VentaConItems } from "@repo/domain";
+import type { EstadoCxC, Item, Venta, VentaConItems } from "@repo/domain";
 import { withRlsContext } from "@repo/database";
 import { getCurrentAccount } from "@/lib/auth";
 import { withErrorHandling } from "@/lib/server-action-wrapper";
@@ -15,7 +15,7 @@ export const listarVentas = withErrorHandling(async (negocioId: string): Promise
   const ventas = await withRlsContext(cuenta.id, negocioId, (tx) =>
     tx.venta.findMany({
       where: { negocioId },
-      include: { ventaItems: { include: { item: true } } },
+      include: { ventaItems: { include: { item: true } }, cuentasPorCobrar: true },
       orderBy: { createdAt: "desc" },
     })
   );
@@ -31,6 +31,13 @@ export const listarVentas = withErrorHandling(async (negocioId: string): Promise
     cuentaFinancieraId: v.cuentaFinancieraId,
     monedaId: v.monedaId,
     tasaCambioId: v.tasaCambioId,
+    cxc: v.cuentasPorCobrar[0]
+      ? {
+          estado: v.cuentasPorCobrar[0].estado as EstadoCxC,
+          montoOriginal: v.cuentasPorCobrar[0].montoOriginal.toString(),
+          montoPagado: v.cuentasPorCobrar[0].montoPagado.toString(),
+        }
+      : null,
     items: v.ventaItems.map((vi) => ({
       id: vi.id,
       ventaId: vi.ventaId,

@@ -3,7 +3,12 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import type { Item, Venta } from "@repo/domain";
-import { assertDevolucionValida, calcularEstadoCxC, calcularEstadoVenta } from "@repo/domain";
+import {
+  assertDevolucionValida,
+  calcularEstadoCxC,
+  calcularEstadoVenta,
+  calcularMontoARefundar,
+} from "@repo/domain";
 import { cancelarVentaSchema } from "@repo/domain/schemas";
 import { aplicarMovimientoCuenta, withRlsContext } from "@repo/database";
 import { getCurrentAccount } from "@/lib/auth";
@@ -76,8 +81,13 @@ export const cancelarVenta = withErrorHandling(
 
       // AC5 (Story 3.3) / Story 3.4: si la venta era a crédito, la
       // devolución reduce el monto adeudado proporcionalmente a lo
-      // devuelto. Si llega a 0, `calcularEstadoCxC` la deja como PAGADO —
-      // el data model no tiene un estado "CANCELADA" propio para CxC.
+      // devuelto. Si el cliente ya había pagado más de lo que el nuevo
+      // monto adeudado dice (típicamente: devolución total con un pago
+      // parcial ya cobrado), esa plata de más no corresponde a ninguna
+      // deuda vigente y se le reembolsa (EGRESO) desde la(s) misma(s)
+      // cuenta(s) donde había entrado — a pedido: antes quedaba cobrada sin
+      // reembolsar y la cuenta marcada como "PAGADO" aunque nunca se haya
+      // devuelto ese dinero.
       if (ventaActual.formaCobro === "CREDITO_CLIENTE") {
         const cxc = await tx.cuentaPorCobrar.findUnique({ where: { ventaId } });
         if (cxc) {
@@ -85,13 +95,54 @@ export const cancelarVenta = withErrorHandling(
             0,
             cxc.montoOriginal.minus(valorDevuelto)
           );
+
+          let montoPagadoNuevo = cxc.montoPagado;
+          let restante = new Prisma.Decimal(
+            calcularMontoARefundar(cxc.montoPagado.toString(), nuevoMontoOriginal.toString())
+          );
+
+          if (restante.greaterThan(0)) {
+            // Más reciente primero: si hay que reembolsar solo una parte de
+            // lo cobrado, se deshace lo último cobrado antes que lo más
+            // viejo (mismo criterio LIFO que cualquier reverso puntual).
+            const pagos = await tx.pagoCxC.findMany({
+              where: { cuentaPorCobrarId: cxc.id },
+              orderBy: [{ fecha: "desc" }, { createdAt: "desc" }],
+            });
+
+            for (const pago of pagos) {
+              if (restante.lessThanOrEqualTo(0)) break;
+
+              const aReembolsar = Prisma.Decimal.min(pago.monto, restante);
+              await aplicarMovimientoCuenta(tx, {
+                cuentaFinancieraId: pago.cuentaFinancieraId,
+                tipo: "EGRESO",
+                monto: aReembolsar.toString(),
+                referenciaTipo: "PAGO_CXC",
+                referenciaId: pago.id,
+              });
+
+              if (aReembolsar.greaterThanOrEqualTo(pago.monto)) {
+                await tx.pagoCxC.delete({ where: { id: pago.id } });
+              } else {
+                await tx.pagoCxC.update({
+                  where: { id: pago.id },
+                  data: { monto: { decrement: aReembolsar } },
+                });
+              }
+
+              montoPagadoNuevo = montoPagadoNuevo.minus(aReembolsar);
+              restante = restante.minus(aReembolsar);
+            }
+          }
+
           const nuevoEstado = calcularEstadoCxC(
             nuevoMontoOriginal.toString(),
-            cxc.montoPagado.toString()
+            montoPagadoNuevo.toString()
           );
           await tx.cuentaPorCobrar.update({
             where: { id: cxc.id },
-            data: { montoOriginal: nuevoMontoOriginal, estado: nuevoEstado },
+            data: { montoOriginal: nuevoMontoOriginal, montoPagado: montoPagadoNuevo, estado: nuevoEstado },
           });
         }
       } else if (ventaActual.cuentaFinancieraId && valorDevuelto.greaterThan(0)) {
@@ -134,6 +185,7 @@ export const cancelarVenta = withErrorHandling(
     revalidatePath("/laboral/servicios");
     revalidatePath("/laboral/cuentas-por-cobrar");
     revalidatePath("/laboral/indicadores");
+    revalidatePath("/laboral/caja");
 
     return {
       id: venta.id,

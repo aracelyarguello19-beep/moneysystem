@@ -26,9 +26,11 @@ const ESTADO_BADGE: Record<CxCConFecha["estado"], { label: string; variant: "suc
 
 // AC1/AC3/AC4: listado por cliente con monto adeudado, fecha de origen y
 // estado, más el total agregado. AC2: registrar un pago (total o parcial).
-// Editar (cliente/monto) y eliminar (solo si no tiene pagos, ver
-// assertCuentaPorCobrarSinPagos) se agregaron después, a pedido — no forman
-// parte de un AC numerado de una story existente.
+// Editar y eliminar se agregaron después, a pedido — no forman parte de un
+// AC numerado de una story existente. Eliminar pregunta primero si la
+// persona devolvió el producto (ver eliminar-cuenta-por-cobrar.ts): si
+// devolvió, cancela la venta completa (repone stock, reembolsa lo cobrado)
+// antes de borrar la cuenta; si no, la borra directo (condona la deuda).
 export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
   const [cuentas, setCuentas] = useState<CxCConFecha[] | null>(null);
   const [pagos, setPagos] = useState<Record<string, { monto: string; cuentaFinancieraId: string }>>(
@@ -102,7 +104,13 @@ export function CuentasPorCobrarLista({ negocioId }: { negocioId: string }) {
     if (!window.confirm(`¿Eliminar la cuenta por cobrar de "${c.cliente}"? Esta acción no se puede deshacer.`)) {
       return;
     }
-    const result = await eliminarCuentaPorCobrar(c.id, negocioId);
+    // Se pregunta acá (no en el server) porque decide qué hace el borrado:
+    // si devolvió, se cancela la venta completa antes (repone stock,
+    // reembolsa lo ya cobrado); si no, se condona la deuda tal cual.
+    const productoDevuelto = window.confirm(
+      `¿"${c.cliente}" devolvió el producto que compró? Aceptar repone el stock al inventario y reembolsa lo que ya haya pagado. Cancelar borra la cuenta sin tocar el inventario ni lo ya cobrado.`
+    );
+    const result = await eliminarCuentaPorCobrar(c.id, negocioId, { productoDevuelto });
     if (!result.ok) {
       setMensajes((prev) => ({ ...prev, [c.id]: result.error.message }));
       return;

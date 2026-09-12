@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Decimal from "decimal.js";
 import type { VentaConItems } from "@repo/domain";
 import { calcularTotalVenta, esCostoServicioIncompleto } from "@repo/domain";
 import { listarVentas } from "@/actions/ventas/listar-ventas";
@@ -80,6 +81,33 @@ export function VentasLista({ negocioId }: { negocioId: string }) {
               >
                 {venta.estado}
               </Badge>
+              {/* `estado` de arriba es solo devoluciones (ACTIVA/CANCELADA/
+                  DEVUELTA_PARCIAL) — nunca dice si el cliente ya pagó. Sin
+                  este badge, una venta a crédito con un pago parcial se veía
+                  igual que una recién vendida y sin cobrar nada todavía.
+                  Se oculta si la venta está CANCELADA: ahí `cxc.estado`
+                  vuelve "PAGADO" en cuanto la devolución deja `montoOriginal`
+                  en 0 (calcularEstadoCxC), aunque nunca se haya cobrado un
+                  guaraní — mostrar "Cobrado" junto a "CANCELADA" es
+                  contradictorio, y una vez cancelada la venta no queda
+                  ninguna deuda que informar. */}
+              {venta.formaCobro === "CREDITO_CLIENTE" && venta.cxc && venta.estado !== "CANCELADA" && (
+                <Badge
+                  variant={
+                    venta.cxc.estado === "PAGADO"
+                      ? "success"
+                      : venta.cxc.estado === "PARCIAL"
+                        ? "warning"
+                        : "danger"
+                  }
+                >
+                  {venta.cxc.estado === "PAGADO"
+                    ? "Cobrado"
+                    : venta.cxc.estado === "PARCIAL"
+                      ? "Cobro parcial"
+                      : "Sin cobrar"}
+                </Badge>
+              )}
             </p>
             <div className="flex flex-wrap items-center gap-3 sm:shrink-0">
               <span className="text-sm font-semibold text-success">
@@ -100,6 +128,14 @@ export function VentasLista({ negocioId }: { negocioId: string }) {
               )}
             </div>
           </div>
+          {venta.formaCobro === "CREDITO_CLIENTE" && venta.cxc && venta.cxc.estado !== "PAGADO" && (
+            <p className="text-xs text-muted">
+              Debe {formatearMonto(venta.cxc.montoOriginal)}, pagó {formatearMonto(venta.cxc.montoPagado)} — saldo{" "}
+              {formatearMonto(
+                new Decimal(venta.cxc.montoOriginal).minus(venta.cxc.montoPagado).toString()
+              )}
+            </p>
+          )}
           <ul className="mt-1 flex flex-col gap-1">
             {venta.items.map((item) => (
               <li key={item.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">

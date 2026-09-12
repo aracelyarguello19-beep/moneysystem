@@ -1,5 +1,6 @@
 import Decimal from "decimal.js";
 import type { Item } from "./item";
+import type { CuentaPorCobrar } from "./cuenta-por-cobrar";
 
 export type FormaCobro = "EFECTIVO" | "BANCO" | "TARJETA" | "CREDITO_CLIENTE";
 export type EstadoVenta = "ACTIVA" | "CANCELADA" | "DEVUELTA_PARCIAL";
@@ -44,8 +45,18 @@ export interface VentaItem {
 // Forma extendida de `Venta`/`VentaItem` para vistas de listado/detalle —
 // agrega el nombre y tipo del ítem (no vive en `venta_items`, se resuelve
 // vía join con `items`). [Source: Story 3.2 Task 3]
+//
+// `cxc`: el estado de COBRO de una venta a crédito (cuánto pagó el cliente,
+// cuánto debe todavía) es un dato de `CuentaPorCobrar`, separado del
+// `estado` de la Venta (que solo describe devoluciones — ACTIVA/CANCELADA/
+// DEVUELTA_PARCIAL). Sin esto, "Registro de Ventas" mostraba el total
+// bruto de la venta sin ningún indicio de que ya se cobró una parte — se
+// veía como si el saldo completo siguiera pendiente (o, según cómo se leyera,
+// como si ya estuviera todo cobrado). `null` para ventas que no son
+// CREDITO_CLIENTE (no tienen CxC asociada).
 export interface VentaConItems extends Venta {
   items: (VentaItem & { itemNombre: string; itemTipo: Item["tipo"] })[];
+  cxc: Pick<CuentaPorCobrar, "estado" | "montoOriginal" | "montoPagado"> | null;
 }
 
 export class CantidadRequeridaError extends Error {

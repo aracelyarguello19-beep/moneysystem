@@ -25,6 +25,7 @@ describe("VentasLista", () => {
           cuentaFinancieraId: "cf-1",
           monedaId: "moneda-1",
           tasaCambioId: null,
+          cxc: null,
           items: [
             {
               id: "vi-1",
@@ -65,6 +66,7 @@ describe("VentasLista", () => {
           cuentaFinancieraId: "cf-1",
           monedaId: "moneda-1",
           tasaCambioId: null,
+          cxc: null,
           items: [
             {
               id: "vi-2",
@@ -89,5 +91,51 @@ describe("VentasLista", () => {
 
     await screen.findByText("Consultoría");
     expect(screen.queryByText(/dato incompleto/i)).not.toBeInTheDocument();
+  });
+
+  it('no muestra "Cobrado" en una venta a crédito CANCELADA aunque la CxC haya quedado en PAGADO por la devolución', async () => {
+    // `calcularEstadoCxC` devuelve "PAGADO" en cuanto `montoOriginal` llega a
+    // 0 (una devolución total lo deja así) aunque `montoPagado` sea "0" — es
+    // decir, nunca se cobró nada. Mostrar "Cobrado" ahí, junto al badge
+    // "CANCELADA", es lo que reportó el usuario como contradictorio.
+    vi.mocked(listarVentas).mockResolvedValue({
+      ok: true,
+      data: [
+        {
+          id: "venta-3",
+          negocioId: "negocio-1",
+          cliente: "Ander",
+          fecha: new Date("2026-09-12"),
+          formaCobro: "CREDITO_CLIENTE",
+          impuesto: "0",
+          estado: "CANCELADA",
+          cuentaFinancieraId: null,
+          monedaId: "moneda-1",
+          tasaCambioId: null,
+          cxc: { estado: "PAGADO", montoOriginal: "0", montoPagado: "0" },
+          items: [
+            {
+              id: "vi-3",
+              ventaId: "venta-3",
+              itemId: "item-1",
+              nombreLibre: null,
+              cantidad: "1",
+              precioUnitario: "195000",
+              costoServicio: null,
+              costoUnitario: "100000",
+              cantidadDevuelta: "1",
+              esLibre: false,
+              itemNombre: "Adidas Gazelle Negro",
+              itemTipo: "PRODUCTO",
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<VentasLista negocioId="negocio-1" />);
+
+    await screen.findByText("CANCELADA");
+    expect(screen.queryByText("Cobrado")).not.toBeInTheDocument();
   });
 });

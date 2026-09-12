@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  assertCuentaPorCobrarSinPagos,
   assertMontoOriginalValido,
   assertPagoValido,
   calcularEstadoCxC,
+  calcularMontoARefundar,
   calcularTotalAdeudado,
-  CuentaPorCobrarConPagosError,
   MontoOriginalMenorAPagadoError,
   PagoExcedeSaldoError,
 } from "./cuenta-por-cobrar";
@@ -73,14 +72,20 @@ describe("assertMontoOriginalValido", () => {
   });
 });
 
-describe("assertCuentaPorCobrarSinPagos", () => {
-  it("no lanza cuando no se registró ningún pago", () => {
-    expect(() => assertCuentaPorCobrarSinPagos({ montoPagado: "0" })).not.toThrow();
+describe("calcularMontoARefundar", () => {
+  it("devuelve 0 cuando lo pagado no supera el nuevo monto original", () => {
+    expect(calcularMontoARefundar("40.00", "100.00")).toBe("0");
   });
 
-  it("lanza cuando ya tiene algún pago registrado", () => {
-    expect(() => assertCuentaPorCobrarSinPagos({ montoPagado: "40.00" })).toThrow(
-      CuentaPorCobrarConPagosError
-    );
+  it("devuelve 0 cuando lo pagado es igual al nuevo monto original", () => {
+    expect(calcularMontoARefundar("100.00", "100.00")).toBe("0");
+  });
+
+  it("devuelve el excedente cuando una devolución total deja el monto original en 0", () => {
+    expect(calcularMontoARefundar("100.00", "0")).toBe("100");
+  });
+
+  it("devuelve el excedente cuando una devolución parcial deja el monto original por debajo de lo pagado", () => {
+    expect(calcularMontoARefundar("150.00", "97.50")).toBe("52.5");
   });
 });

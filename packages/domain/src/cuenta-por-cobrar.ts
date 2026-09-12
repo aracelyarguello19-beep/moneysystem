@@ -83,22 +83,14 @@ export function assertMontoOriginalValido(
   }
 }
 
-export class CuentaPorCobrarConPagosError extends Error {
-  constructor() {
-    super("Esta cuenta ya tiene pagos registrados — no se puede eliminar.");
-    this.name = "CuentaPorCobrarConPagosError";
-  }
+// Cuánto hay que reembolsarle al cliente cuando una devolución (total o
+// parcial, ver cancelar-venta.ts) deja `montoOriginal` por debajo de lo que
+// ya había pagado — esa plata ya no corresponde a ninguna deuda vigente y
+// hay que devolvérsela (EGRESO), no quedársela con la cuenta marcada como
+// si "ya estuviera pagada". A pedido: antes una devolución total sobre una
+// venta con un pago parcial dejaba el pago cobrado sin reembolsar y la
+// cuenta por cobrar en PAGADO, aunque nunca se haya devuelto ese dinero.
+export function calcularMontoARefundar(montoPagado: string, montoOriginalNuevo: string): string {
+  return Decimal.max(0, new Decimal(montoPagado).minus(montoOriginalNuevo)).toString();
 }
 
-// No se puede eliminar una cuenta por cobrar que ya tiene pagos: el pago
-// cascadea (`onDelete: Cascade` en pagos_cxc), pero el movimiento de caja que
-// ese pago generó no se revierte solo (no hay FK entre movimientos_cuenta y
-// pagos_cxc) — borrar dejaría el dinero cobrado en caja sin ningún rastro de
-// a qué deuda correspondía.
-export function assertCuentaPorCobrarSinPagos(
-  cxc: Pick<CuentaPorCobrar, "montoPagado">
-): void {
-  if (new Decimal(cxc.montoPagado).greaterThan(0)) {
-    throw new CuentaPorCobrarConPagosError();
-  }
-}
