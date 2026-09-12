@@ -43,8 +43,8 @@ const COLOR_SELECCION: Record<Venta["formaCobro"], string> = {
 
 const FORMAS_COBRO: { value: Venta["formaCobro"]; label: string; icon: string }[] = [
   { value: "EFECTIVO", label: "Efectivo", icon: "payments" },
-  { value: "TARJETA", label: "Tarjeta", icon: "credit_card" },
   { value: "BANCO", label: "Transferencia", icon: "account_balance" },
+  { value: "TARJETA", label: "Tarjeta", icon: "credit_card" },
   { value: "CREDITO_CLIENTE", label: "Crédito", icon: "receipt" },
 ];
 
