@@ -188,19 +188,22 @@ export function RegistrarVentaForm({
   const esMonedaForanea = !!monedaSeleccionada && !monedaSeleccionada.esBase;
   // Cuentas de venta (cobro del cliente): nunca Tarjeta propia (es un
   // pasivo, no liquidez) — el pago a proveedor de "venta libre" sí puede
-  // usar Tarjeta, por eso ese selector filtra aparte (ver más abajo).
+  // usar Tarjeta, por eso ese selector filtra aparte (ver más abajo). Efectivo
+  // entra a una caja física (tipo CAJA); Transferencia y Tarjeta entran a una
+  // cuenta bancaria (tipo BANCO) — nunca se mezclan entre sí en el selector.
+  const tipoCuentaDestino = formaCobro === "EFECTIVO" ? "CAJA" : "BANCO";
   const cuentasCajaYBanco = cuentasFinancieras.filter((c) => c.tipo === "CAJA" || c.tipo === "BANCO");
 
   // La cuenta que recibe el pago tiene que ser de la MISMA moneda en la que
-  // pagó el cliente — nunca se convierte silenciosamente. Efectivo/Tarjeta
-  // no muestran selector (ver más abajo) pero igual necesitan una cuenta
-  // real: se preselecciona la primera que matchee esa moneda, y se
-  // recalcula cada vez que cambia la moneda elegida.
+  // pagó el cliente — nunca se convierte silenciosamente. Se preselecciona la
+  // primera cuenta del tipo correcto (caja o banco, según la forma de cobro)
+  // que matchee esa moneda, y se recalcula cada vez que cambia la moneda o la
+  // forma de cobro elegida.
   useEffect(() => {
-    const candidatas = cuentasCajaYBanco.filter((c) => c.monedaId === monedaId);
+    const candidatas = cuentasCajaYBanco.filter((c) => c.tipo === tipoCuentaDestino && c.monedaId === monedaId);
     setCuentaFinancieraId((actual) => (candidatas.some((c) => c.id === actual) ? actual : candidatas[0]?.id ?? ""));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monedaId, cuentasFinancieras]);
+  }, [monedaId, cuentasFinancieras, tipoCuentaDestino]);
 
   // Al elegir una moneda distinta a la oficial, precarga la cotización
   // vigente (Story 5.3, TasaCambio) y el monto recibido sugerido — ambos
@@ -511,10 +514,13 @@ export function RegistrarVentaForm({
           ) : (
             /* Cantidad de columnas fija por breakpoint (no `auto-fill`: en
                monitores muy anchos terminaba metiendo 12+ tarjetas por
-               fila, más de lo que se pidió) — a pedido, 8 columnas exactas
-               en pantallas muy anchas (2xl), escalando hacia abajo en el
-               resto. */
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+               fila, más de lo que se pidió). De `md` en adelante el sidebar
+               fijo (230px) le come ancho real al catálogo, y de `lg` en
+               adelante también compite con la columna del resumen (380px) —
+               por eso la cantidad de columnas no crece de forma lineal con
+               el breakpoint: baja en md/lg (menos ancho real disponible) y
+               vuelve a subir en xl/2xl (una vez que sobra ancho de nuevo). */
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
               {productosFiltrados.map((item) => {
                 const stock = Number(item.stockActual);
                 // Cuánto queda para agregar, descontando lo que ya pedimos
@@ -908,7 +914,9 @@ export function RegistrarVentaForm({
           {formaCobro !== "CREDITO_CLIENTE" && (
             <Card className="flex flex-col gap-2 border-secondary/40 bg-secondary-container/20 p-3">
               {(() => {
-                const candidatas = cuentasCajaYBanco.filter((c) => c.monedaId === monedaId);
+                const candidatas = cuentasCajaYBanco.filter(
+                  (c) => c.tipo === tipoCuentaDestino && c.monedaId === monedaId
+                );
                 const label =
                   formaCobro === "BANCO"
                     ? "¿A qué cuenta entra la transferencia?"
