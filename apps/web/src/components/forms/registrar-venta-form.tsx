@@ -609,6 +609,7 @@ export function RegistrarVentaForm({
             ? "fixed inset-x-0 bottom-0 max-h-[85dvh] translate-y-0 overflow-y-auto overscroll-contain rounded-t-2xl border-t border-outline-variant p-4 shadow-lg"
             : "fixed inset-x-0 bottom-0 max-h-[85dvh] translate-y-full overflow-y-auto overscroll-contain rounded-t-2xl border-t border-outline-variant p-4 shadow-lg lg:max-h-none lg:overflow-visible lg:rounded-none lg:border-0 lg:p-0 lg:shadow-none"
         }`}
+        style={{ touchAction: "pan-y" }}
       >
         {/* Agarradera + cerrar — solo tienen sentido en la hoja mobile. */}
         <div className="flex items-center justify-between lg:hidden">
@@ -635,14 +636,16 @@ export function RegistrarVentaForm({
               columna ancha): este resumen es angosto tanto en mobile como en
               desktop (~380px fijos), así que un layout en grilla pensado
               para una columna ancha quedaba con las celdas encimadas. */}
-          {/* Sin tope de altura propio en mobile (solo en desktop, `lg:`):
-              ahí la hoja entera ya scrollea como una sola pieza, y un
-              scroll anidado además del de la hoja es justo el tipo de cosa
-              que en mobile Safari puede terminar clipeando o "perdiendo"
-              contenido — más simple y más confiable dejar que fluya con el
-              resto. En desktop sí conviene: mantiene el cobro/submit a la
-              vista sin tener que scrollear toda la página. */}
-          <div className="flex flex-col divide-y divide-outline-variant border-y border-outline-variant lg:max-h-72 lg:overflow-y-auto">
+          {/* Zona de scroll propia (con su propio tope de altura) tanto en
+              mobile como en desktop — a pedido, tiene que poder deslizarse
+              ella sola para ver todos los productos agregados sin depender
+              de scrollear toda la hoja. `touch-action:pan-y` + `overscroll-
+              contain` de forma explícita para que el gesto de arrastre
+              quede atrapado acá (no se filtre al catálogo de fondo). */}
+          <div
+            className="flex max-h-[38vh] flex-col divide-y divide-outline-variant overflow-y-auto overscroll-contain border-y border-outline-variant lg:max-h-72"
+            style={{ touchAction: "pan-y" }}
+          >
             {lineas.length === 0 && (
               <p className="px-4 py-6 text-center text-body-md text-on-surface-variant">
                 Todavía no agregaste ningún ítem.
@@ -862,20 +865,24 @@ export function RegistrarVentaForm({
             práctica, así que preguntar ahí era ruido. Transferencia sí
             puede ir a bancos distintos, por eso es la única que pregunta. */}
         <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2">
+          {/* Botones más chicos y horizontales en mobile/tablet (a pedido) —
+              apilado grande (ícono arriba, texto abajo) recién desde `lg`,
+              donde hay más lugar; por debajo, ícono + texto en una fila
+              compacta ocupan menos alto dentro de la hoja del resumen. */}
+          <div className="grid grid-cols-2 gap-1.5 lg:gap-2">
             {FORMAS_COBRO.map((fc) => (
               <button
                 key={fc.value}
                 type="button"
                 onClick={() => setFormaCobro(fc.value)}
-                className={`flex flex-col items-center justify-center gap-1 rounded border p-3 transition-colors ${
+                className={`flex items-center justify-center gap-1.5 rounded border p-2 text-label-md transition-colors lg:flex-col lg:gap-1 lg:p-3 ${
                   formaCobro === fc.value
                     ? COLOR_SELECCION[fc.value]
                     : "border-outline-variant bg-surface text-on-surface hover:border-tertiary"
                 }`}
               >
-                <Icon name={fc.icon} />
-                <span className="text-label-md">{fc.label}</span>
+                <Icon name={fc.icon} className="text-[16px] lg:text-[20px]" />
+                <span>{fc.label}</span>
               </button>
             ))}
           </div>
