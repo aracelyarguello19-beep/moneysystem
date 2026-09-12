@@ -110,16 +110,41 @@ export function RegistrarVentaForm({
   // abre, tocar el fondo o su botón de cerrar lo cierra.
   const [resumenAbierto, setResumenAbierto] = useState(false);
 
-  // Bloquea el scroll de la página de fondo mientras la hoja está abierta —
-  // sin esto, un swipe sobre la hoja (o su fondo oscuro) terminaba
-  // scrolleando el catálogo detrás en vez del contenido de la hoja, porque
-  // el body seguía siendo el único elemento realmente scrolleable ahí.
+  // Bloquea el scroll de la página de fondo mientras la hoja está abierta.
+  // Sin esto, un swipe sobre la hoja (o su fondo oscuro) terminaba
+  // scrolleando el catálogo detrás en vez del contenido de la hoja. Solo
+  // `overflow: hidden` en el body NO alcanza en iOS Safari — es un problema
+  // conocido: Safari sigue dejando "rebotar" (scroll elástico) la página de
+  // fondo igual. La técnica que sí funciona ahí es fijar el body en su
+  // lugar (`position: fixed` con `top` negativo = el scroll actual) para
+  // que no tenga ningún scroll propio que hacer, y restaurar la posición
+  // exacta al cerrar.
   useEffect(() => {
     if (!resumenAbierto) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const scrollY = window.scrollY;
+    const { style } = document.body;
+    const previous = {
+      position: style.position,
+      top: style.top,
+      left: style.left,
+      right: style.right,
+      width: style.width,
+      overflow: style.overflow,
+    };
+    style.position = "fixed";
+    style.top = `-${scrollY}px`;
+    style.left = "0";
+    style.right = "0";
+    style.width = "100%";
+    style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = original;
+      style.position = previous.position;
+      style.top = previous.top;
+      style.left = previous.left;
+      style.right = previous.right;
+      style.width = previous.width;
+      style.overflow = previous.overflow;
+      window.scrollTo(0, scrollY);
     };
   }, [resumenAbierto]);
 
