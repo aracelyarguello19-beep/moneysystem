@@ -668,7 +668,7 @@ export function RegistrarVentaForm({
               contain` de forma explícita para que el gesto de arrastre
               quede atrapado acá (no se filtre al catálogo de fondo). */}
           <div
-            className="flex max-h-[38vh] flex-col divide-y divide-outline-variant overflow-y-auto overscroll-contain border-y border-outline-variant lg:max-h-72"
+            className="flex max-h-[38vh] shrink-0 flex-col divide-y divide-outline-variant overflow-y-auto overscroll-contain border-y border-outline-variant lg:max-h-72"
             style={{ touchAction: "pan-y" }}
           >
             {lineas.length === 0 && (
