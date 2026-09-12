@@ -17,14 +17,15 @@ export default function VentasPage() {
           Seleccioná un negocio activo para registrar una venta.
         </p>
       ) : (
-        <>
-          <RegistrarVentaForm negocioId={negocioActivoId} />
-
-          <section className="flex flex-col gap-4">
-            <h2 className="text-headline-sm font-bold text-on-surface">Historial de ventas</h2>
-            <VentasLista negocioId={negocioActivoId} />
-          </section>
-        </>
+        <RegistrarVentaForm
+          negocioId={negocioActivoId}
+          historial={
+            <section className="flex flex-col gap-4">
+              <h2 className="text-headline-sm font-bold text-on-surface">Historial de ventas</h2>
+              <VentasLista negocioId={negocioActivoId} />
+            </section>
+          }
+        />
       )}
     </main>
   );

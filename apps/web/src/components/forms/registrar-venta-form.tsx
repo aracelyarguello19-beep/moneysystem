@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Decimal from "decimal.js";
 import type { Item, Moneda, Venta } from "@repo/domain";
 import { calcularGananciaProducto, calcularTotalVenta } from "@repo/domain";
@@ -78,7 +78,15 @@ function formatearMargen(margen: string): string {
 //    talla, color — que el modelo elegido no tiene en existencia ahora
 //    mismo). El costo de esa línea se registra como Compra sin stock (ver
 //    `registrarVenta`), y no muestra el % de ganancia en pantalla.
-export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
+export function RegistrarVentaForm({
+  negocioId,
+  historial,
+}: {
+  negocioId: string;
+  /** Historial de ventas — a pedido, se muestra debajo del resumen (columna
+      derecha en desktop) en vez de en una sección aparte debajo de todo. */
+  historial?: ReactNode;
+}) {
   const [items, setItems] = useState<Item[]>([]);
   const [monedas, setMonedas] = useState<Moneda[]>([]);
   const [tasas, setTasas] = useState<MonedaConTasa[]>([]);
@@ -95,6 +103,12 @@ export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
   const [clienteError, setClienteError] = useState<string | null>(null);
   const [serverMessage, setServerMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Resumen como hoja inferior en mobile/tablet (< lg): en desktop este
+  // mismo bloque ya se ve siempre en la columna derecha, así que el estado
+  // solo importa por debajo de `lg` — una barra fija abajo (carrito) lo
+  // abre, tocar el fondo o su botón de cerrar lo cierra.
+  const [resumenAbierto, setResumenAbierto] = useState(false);
 
   const [libreAbierta, setLibreAbierta] = useState(false);
   const [libreTexto, setLibreTexto] = useState("");
@@ -308,7 +322,11 @@ export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
   const total = new Decimal(subtotal).plus(impuesto || "0").toString();
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4 lg:flex-row lg:items-start" noValidate>
+    <form
+      onSubmit={onSubmit}
+      className="flex flex-col gap-4 pb-16 lg:flex-row lg:items-start lg:pb-0"
+      noValidate
+    >
       {/* Columna izquierda: búsqueda + catálogo + carrito */}
       <div className="flex flex-1 flex-col gap-4">
         <Card className="flex flex-wrap items-center gap-3 p-4">
@@ -413,23 +431,45 @@ export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
           </Card>
         )}
 
-        <div className="flex flex-col gap-3">
+        {/* Scroll propio solo en desktop (`lg:`): el catálogo puede tener
+            muchos más productos que lo que entra en pantalla, y antes
+            empujaba todo lo de abajo (resumen, historial) cada vez más
+            lejos. En mobile se deja scrollear la página entera como
+            siempre — un scroll anidado ahí se siente raro al tacto. */}
+        <div className="flex flex-col gap-3 lg:max-h-[70vh] lg:overflow-y-auto lg:pr-1">
           {productosFiltrados.length === 0 ? (
             <p className="text-body-md text-on-surface-variant">
               {busqueda ? "Ningún producto coincide con la búsqueda." : "Todavía no hay productos en el inventario."}
             </p>
           ) : (
-            <div className="flex flex-wrap gap-3">
+            /* Cantidad de columnas fija por breakpoint (no `auto-fill`: en
+               monitores muy anchos terminaba metiendo 12+ tarjetas por
+               fila, más de lo que se pidió) — a pedido, 8 columnas exactas
+               en pantallas muy anchas (2xl), escalando hacia abajo en el
+               resto. */
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
               {productosFiltrados.map((item) => {
                 const stock = Number(item.stockActual);
                 const stockVariant = stock <= 0 ? "danger" : stock <= 5 ? "warning" : "success";
+                // Persistente mientras el producto siga en la lista de la
+                // venta — antes era un flash de 900ms que se apagaba solo,
+                // y a pedido tiene que quedar marcado hasta que se saque del
+                // carrito (o se registre/reinicie la venta).
+                const enCarrito = lineas.some((l) => l.itemId === item.id);
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => agregarDesdeInventario(item)}
-                    className="w-[118px] overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-tertiary hover:shadow-md"
+                    className={`relative overflow-hidden rounded-xl border bg-surface-container-lowest text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-tertiary hover:shadow-md ${
+                      enCarrito ? "border-success ring-2 ring-success" : "border-outline-variant"
+                    }`}
                   >
+                    {enCarrito && (
+                      <span className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-success text-white shadow">
+                        <Icon name="check" className="text-[16px]" />
+                      </span>
+                    )}
                     <div className="flex aspect-square items-center justify-center bg-surface-container-high text-on-surface-variant">
                       {item.imagenUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- URL pública externa de Supabase Storage
@@ -474,26 +514,80 @@ export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
             </FormField>
           )}
         </div>
+      </div>
 
-        {/* Carrito activo — misma grilla de columnas que Stitch: #, Producto, Cant, Precio, Total */}
-        <Card className="flex flex-1 flex-col overflow-hidden p-0">
-          {/* La cabecera de columnas solo tiene sentido con la grilla de 12:
-              en mobile cada línea se apila como card y rotula sus propios
-              campos, así que el encabezado sobra. */}
-          <div className="hidden grid-cols-12 gap-2 border-b border-outline-variant bg-surface-container-low px-4 py-3 text-label-md font-semibold uppercase tracking-wide text-on-surface-variant sm:grid">
-            <div className="col-span-1">#</div>
-            <div className="col-span-5">Producto</div>
-            <div className="col-span-2 text-right">Cant.</div>
-            <div className="col-span-2 text-right">Precio</div>
-            <div className="col-span-2 text-right">Total</div>
-          </div>
-          <div className="flex flex-col divide-y divide-outline-variant">
+      {/* Barra fija de carrito — solo mobile/tablet (`lg:hidden`): toca para
+          abrir el resumen como hoja inferior. En desktop el resumen ya está
+          siempre visible al costado, así que la barra no hace falta ahí. */}
+      <button
+        type="button"
+        onClick={() => setResumenAbierto(true)}
+        className={`fixed inset-x-0 bottom-0 z-20 flex items-center justify-center gap-2 border-t border-outline-variant bg-primary px-4 py-3 text-on-primary shadow-lg lg:hidden ${
+          resumenAbierto ? "hidden" : ""
+        }`}
+      >
+        <Icon name="shopping_cart" fill className="text-[20px]" />
+        <span className="font-semibold">
+          {lineas.length} {lineas.length === 1 ? "ítem" : "ítems"} · {formatearMonto(total, codigoMonedaBase)}
+        </span>
+        <Icon name="keyboard_arrow_up" className="text-[20px]" />
+      </button>
+
+      {/* Fondo oscuro al abrir el resumen en mobile/tablet — clickear lo
+          cierra. `lg:hidden` para que nunca aparezca en desktop, donde
+          `resumenAbierto` no tiene ningún efecto visual. */}
+      {resumenAbierto && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setResumenAbierto(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Columna derecha: resumen de orden + métodos de cobro. En desktop
+          (`lg:`) es la columna fija de siempre; por debajo de `lg` es la
+          misma información pero como hoja que sube desde abajo (mismo
+          nodo del DOM en los dos casos, solo cambian las clases —
+          evita duplicar todo este bloque con ids repetidos). */}
+      <div
+        className={`z-40 flex w-full flex-col gap-4 bg-surface-container-lowest transition-transform duration-300 ease-out lg:static lg:z-auto lg:w-[380px] lg:translate-y-0 lg:bg-transparent lg:transition-none ${
+          resumenAbierto
+            ? "fixed inset-x-0 bottom-0 max-h-[85dvh] translate-y-0 overflow-y-auto rounded-t-2xl border-t border-outline-variant p-4 shadow-lg"
+            : "fixed inset-x-0 bottom-0 max-h-[85dvh] translate-y-full overflow-y-auto rounded-t-2xl border-t border-outline-variant p-4 shadow-lg lg:max-h-none lg:overflow-visible lg:rounded-none lg:border-0 lg:p-0 lg:shadow-none"
+        }`}
+      >
+        {/* Agarradera + cerrar — solo tienen sentido en la hoja mobile. */}
+        <div className="flex items-center justify-between lg:hidden">
+          <div className="mx-auto h-1.5 w-12 rounded-full bg-outline-variant" />
+          <button
+            type="button"
+            onClick={() => setResumenAbierto(false)}
+            className="absolute right-4 top-4 text-on-surface-variant"
+            aria-label="Cerrar resumen"
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+        <Card className="flex flex-col gap-0 overflow-hidden p-0">
+          <CardHeader className="px-4 pt-4 sm:px-5 sm:pt-5">
+            <CardTitle>Resumen de venta</CardTitle>
+          </CardHeader>
+
+          {/* Lista de productos agregados — antes vivía separada en la
+              columna izquierda (lejos del resumen/total); a pedido se movió
+              acá para tener cantidad/precio/total del carrito junto al
+              subtotal, en el mismo bloque donde se registra la venta.
+              Siempre apilada (nunca la grilla de 12 columnas que usaba en la
+              columna ancha): este resumen es angosto tanto en mobile como en
+              desktop (~380px fijos), así que un layout en grilla pensado
+              para una columna ancha quedaba con las celdas encimadas. */}
+          <div className="flex max-h-72 flex-col divide-y divide-outline-variant overflow-y-auto border-y border-outline-variant">
             {lineas.length === 0 && (
-              <p className="px-4 py-8 text-center text-body-md text-on-surface-variant">
+              <p className="px-4 py-6 text-center text-body-md text-on-surface-variant">
                 Todavía no agregaste ningún ítem.
               </p>
             )}
-            {lineas.map((linea, i) => {
+            {lineas.map((linea) => {
               const item = itemPorId(linea.itemId);
               const esProducto = linea.esLibre || item?.tipo === "PRODUCTO";
               const ganancia =
@@ -505,51 +599,54 @@ export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
                 .toString();
 
               return (
-                <div
-                  key={linea.id}
-                  className="group flex flex-col gap-2 px-3 py-3 transition-colors hover:bg-surface-container-low sm:grid sm:grid-cols-12 sm:items-center sm:gap-2 sm:px-4"
-                >
-                  <div className="hidden text-body-md text-on-surface-variant sm:col-span-1 sm:block">
-                    {i + 1}
-                  </div>
-                  <div className="min-w-0 sm:col-span-5">
-                    <p className="flex flex-wrap items-center gap-2 text-label-lg font-medium text-on-surface">
+                <div key={linea.id} className="flex flex-col gap-2 px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 flex-1 text-label-lg font-medium text-on-surface">
                       {item?.nombre ?? linea.nombreLibre}
-                      {linea.esLibre && <Badge variant="warning">Sobre pedido</Badge>}
+                      {linea.esLibre && (
+                        <Badge variant="warning" className="ml-1 align-middle">
+                          Sobre pedido
+                        </Badge>
+                      )}
                       {linea.esLibre && !linea.itemId && (
-                        <span className="text-label-md font-normal text-on-surface-variant">
+                        <span className="ml-1 text-label-md font-normal text-on-surface-variant">
                           (fuera de catálogo)
                         </span>
                       )}
                     </p>
-                    {linea.esLibre && (
-                      <Input
-                        aria-label="Costo de compra"
-                        value={linea.costoUnitario}
-                        onChange={(e) => actualizarLinea(linea.id, { costoUnitario: e.target.value })}
-                        placeholder="Costo de compra"
-                        className="mt-1 h-7 w-32 text-label-md"
-                      />
-                    )}
-                    {item?.tipo === "SERVICIO" && (
-                      <Input
-                        aria-label="Costo del servicio"
-                        value={linea.costoServicio}
-                        onChange={(e) => actualizarLinea(linea.id, { costoServicio: e.target.value })}
-                        placeholder="Costo del servicio"
-                        className="mt-1 h-7 w-36 text-label-md"
-                      />
-                    )}
-                    {ganancia && (
-                      <p className="text-label-md text-on-surface-variant">
-                        Ganancia: {ganancia.ganancia} ({formatearMargen(ganancia.margen)}%)
-                      </p>
-                    )}
+                    <button
+                      type="button"
+                      className="shrink-0 text-error"
+                      onClick={() => quitarLinea(linea.id)}
+                      aria-label="Quitar"
+                    >
+                      <Icon name="delete" className="text-[18px]" />
+                    </button>
                   </div>
-                  {/* En mobile cada campo lleva su rótulo al lado, porque no
-                      hay cabecera de columnas que lo explique. */}
-                  <div className="flex items-center justify-between gap-2 sm:col-span-2 sm:justify-end">
-                    <span className="text-label-md text-on-surface-variant sm:hidden">Cant.</span>
+                  {linea.esLibre && (
+                    <Input
+                      aria-label="Costo de compra"
+                      value={linea.costoUnitario}
+                      onChange={(e) => actualizarLinea(linea.id, { costoUnitario: e.target.value })}
+                      placeholder="Costo de compra"
+                      className="h-7 w-32 text-label-md"
+                    />
+                  )}
+                  {item?.tipo === "SERVICIO" && (
+                    <Input
+                      aria-label="Costo del servicio"
+                      value={linea.costoServicio}
+                      onChange={(e) => actualizarLinea(linea.id, { costoServicio: e.target.value })}
+                      placeholder="Costo del servicio"
+                      className="h-7 w-36 text-label-md"
+                    />
+                  )}
+                  {ganancia && (
+                    <p className="text-label-md text-on-surface-variant">
+                      Ganancia: {ganancia.ganancia} ({formatearMargen(ganancia.margen)}%)
+                    </p>
+                  )}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     {esProducto ? (
                       <div className="flex items-center rounded border border-outline-variant bg-surface">
                         <button
@@ -585,119 +682,98 @@ export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
                         </button>
                       </div>
                     ) : (
-                      <span className="text-body-md text-on-surface-variant">1</span>
+                      <span className="text-body-md text-on-surface-variant">1 unidad</span>
                     )}
-                  </div>
-                  <div className="flex items-center justify-between gap-2 text-right sm:col-span-2 sm:block">
-                    <span className="text-label-md text-on-surface-variant sm:hidden">Precio</span>
                     <Input
                       aria-label="Precio unitario"
                       value={linea.precioUnitario}
                       inputMode="decimal"
-                      className="h-10 w-32 text-right text-body-md sm:h-8 sm:w-full"
+                      className="h-8 w-24 text-right text-body-md"
                       onChange={(e) => actualizarLinea(linea.id, { precioUnitario: e.target.value })}
                     />
                   </div>
-                  <div className="flex items-center justify-between gap-2 text-label-lg font-medium text-on-surface sm:col-span-2 sm:justify-end">
-                    <span className="text-label-md font-normal text-on-surface-variant sm:hidden">Total</span>
+                  <div className="flex items-center justify-between text-label-lg font-medium text-on-surface">
+                    <span className="text-label-md font-normal text-on-surface-variant">Total</span>
                     {formatearMonto(lineaTotal, codigoMonedaBase)}
-                    {/* `pointer-fine` (mouse/trackpad), no un breakpoint de
-                        ancho: una tablet táctil no dispara `:hover` aunque su
-                        pantalla sea ancha, y el botón de borrar tiene que
-                        seguir siendo alcanzable ahí igual que en el celular. */}
-                    <button
-                      type="button"
-                      className="text-error transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100"
-                      onClick={() => quitarLinea(linea.id)}
-                      aria-label="Quitar"
-                    >
-                      <Icon name="delete" className="text-[18px]" />
-                    </button>
                   </div>
                 </div>
               );
             })}
           </div>
-        </Card>
-      </div>
 
-      {/* Columna derecha: resumen de orden + métodos de cobro */}
-      <div className="flex w-full flex-col gap-4 lg:w-[380px]">
-        <Card className="flex flex-col gap-3">
-          <CardHeader>
-            <CardTitle>Resumen de venta</CardTitle>
-          </CardHeader>
-          <div className="flex justify-between text-body-md">
-            <span className="text-on-surface-variant">Subtotal ({lineas.length} ítems)</span>
-            <span className="text-on-surface">{formatearMonto(subtotal, codigoMonedaBase)}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-outline-variant pb-3 text-body-md">
-            <span className="text-on-surface-variant">Impuesto</span>
-            <Input
-              aria-label="Impuesto"
-              value={impuesto}
-              onChange={(e) => setImpuesto(e.target.value)}
-              className="h-8 w-24 text-right"
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-headline-sm font-semibold text-on-surface">Total</span>
-            <span className="text-headline-md font-bold text-success">{formatearMonto(total, codigoMonedaBase)}</span>
-          </div>
+          <div className="flex flex-col gap-3 p-4 sm:p-5">
+            <div className="flex justify-between text-body-md">
+              <span className="text-on-surface-variant">Subtotal ({lineas.length} ítems)</span>
+              <span className="text-on-surface">{formatearMonto(subtotal, codigoMonedaBase)}</span>
+            </div>
+            <div className="flex items-center justify-between border-b border-outline-variant pb-3 text-body-md">
+              <span className="text-on-surface-variant">Impuesto</span>
+              <Input
+                aria-label="Impuesto"
+                value={impuesto}
+                onChange={(e) => setImpuesto(e.target.value)}
+                className="h-8 w-24 text-right"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-headline-sm font-semibold text-on-surface">Total</span>
+              <span className="text-headline-md font-bold text-success">{formatearMonto(total, codigoMonedaBase)}</span>
+            </div>
 
-          <div className="mt-2 flex flex-col gap-3 border-t border-outline-variant pt-3">
-            <FormField
-              htmlFor="cliente-venta"
-              label={`Cliente ${formaCobro === "CREDITO_CLIENTE" ? "(requerido)" : "(opcional)"}`}
-              error={clienteError ?? undefined}
-            >
-              <Input id="cliente-venta" value={cliente} onChange={(e) => setCliente(e.target.value)} />
-            </FormField>
-            <FormField htmlFor="moneda-venta" label="¿En qué moneda pagó?">
-              <Select id="moneda-venta" value={monedaId} onChange={(e) => setMonedaId(e.target.value)}>
-                {monedas.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.esBase ? `${m.codigo} (oficial)` : m.codigo}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
+            <div className="mt-2 flex flex-col gap-3 border-t border-outline-variant pt-3">
+              <FormField
+                htmlFor="cliente-venta"
+                label={`Cliente ${formaCobro === "CREDITO_CLIENTE" ? "(requerido)" : "(opcional)"}`}
+                error={clienteError ?? undefined}
+              >
+                <Input id="cliente-venta" value={cliente} onChange={(e) => setCliente(e.target.value)} />
+              </FormField>
+              <FormField htmlFor="moneda-venta" label="¿En qué moneda pagó?">
+                <Select id="moneda-venta" value={monedaId} onChange={(e) => setMonedaId(e.target.value)}>
+                  {monedas.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.esBase ? `${m.codigo} (oficial)` : m.codigo}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
 
-            {/* El carrito/subtotal/total de arriba SIEMPRE quedan en la
-                moneda oficial — elegir otra acá no los cambia, solo abre
-                este panel para anotar cuánto entró en esa moneda (Story
-                rediseño Caja multimoneda). La cotización se precarga con la
-                última cargada (TasaCambio) pero es editable porque varía
-                día a día; al registrar, esa cotización pasa a ser la nueva
-                "vigente" en la tarjeta de esa moneda en Caja. */}
-            {esMonedaForanea && (
-              <Card className="flex flex-col gap-2 border-tertiary/40 bg-tertiary-container/10 p-3">
-                <FormField
-                  htmlFor="cotizacion-venta"
-                  label={`Cotización de hoy (1 ${monedaSeleccionada?.codigo} en ${codigoMonedaBase})`}
-                >
-                  <Input
-                    id="cotizacion-venta"
-                    value={cotizacion}
-                    onChange={(e) => onCotizacionChange(e.target.value)}
-                    className="w-28"
-                  />
-                </FormField>
-                <FormField htmlFor="monto-recibido-venta" label={`Recibiste en ${monedaSeleccionada?.codigo}`}>
-                  <Input
-                    id="monto-recibido-venta"
-                    value={montoRecibido}
-                    onChange={(e) => setMontoRecibido(e.target.value)}
-                    className="w-28"
-                  />
-                </FormField>
-                <p className="text-label-md text-on-surface-variant">
-                  Se calcula solo: {formatearMonto(total, codigoMonedaBase)} ÷ cotización — ajustalo si el cliente
-                  redondeó. Se acredita en la cuenta de {monedaSeleccionada?.codigo}, nunca en la de{" "}
-                  {codigoMonedaBase}.
-                </p>
-              </Card>
-            )}
+              {/* El carrito/subtotal/total de arriba SIEMPRE quedan en la
+                  moneda oficial — elegir otra acá no los cambia, solo abre
+                  este panel para anotar cuánto entró en esa moneda (Story
+                  rediseño Caja multimoneda). La cotización se precarga con la
+                  última cargada (TasaCambio) pero es editable porque varía
+                  día a día; al registrar, esa cotización pasa a ser la nueva
+                  "vigente" en la tarjeta de esa moneda en Caja. */}
+              {esMonedaForanea && (
+                <Card className="flex flex-col gap-2 border-tertiary/40 bg-tertiary-container/10 p-3">
+                  <FormField
+                    htmlFor="cotizacion-venta"
+                    label={`Cotización de hoy (1 ${monedaSeleccionada?.codigo} en ${codigoMonedaBase})`}
+                  >
+                    <Input
+                      id="cotizacion-venta"
+                      value={cotizacion}
+                      onChange={(e) => onCotizacionChange(e.target.value)}
+                      className="w-28"
+                    />
+                  </FormField>
+                  <FormField htmlFor="monto-recibido-venta" label={`Recibiste en ${monedaSeleccionada?.codigo}`}>
+                    <Input
+                      id="monto-recibido-venta"
+                      value={montoRecibido}
+                      onChange={(e) => setMontoRecibido(e.target.value)}
+                      className="w-28"
+                    />
+                  </FormField>
+                  <p className="text-label-md text-on-surface-variant">
+                    Se calcula solo: {formatearMonto(total, codigoMonedaBase)} ÷ cotización — ajustalo si el cliente
+                    redondeó. Se acredita en la cuenta de {monedaSeleccionada?.codigo}, nunca en la de{" "}
+                    {codigoMonedaBase}.
+                  </p>
+                </Card>
+              )}
+            </div>
           </div>
         </Card>
 
@@ -766,6 +842,8 @@ export function RegistrarVentaForm({ negocioId }: { negocioId: string }) {
             {serverMessage}
           </p>
         )}
+
+        {historial}
       </div>
     </form>
   );
