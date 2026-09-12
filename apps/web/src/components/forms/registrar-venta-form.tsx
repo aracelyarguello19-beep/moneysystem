@@ -824,71 +824,74 @@ export function RegistrarVentaForm({
               <span className="text-headline-md font-bold text-success">{formatearMonto(total, codigoMonedaBase)}</span>
             </div>
 
-            <div className="mt-2 flex flex-col gap-3 border-t border-outline-variant pt-3">
-              <FormField
-                htmlFor="cliente-venta"
-                label={`Cliente ${formaCobro === "CREDITO_CLIENTE" ? "(requerido)" : "(opcional)"}`}
-                error={clienteError ?? undefined}
-              >
-                <Input id="cliente-venta" value={cliente} onChange={(e) => setCliente(e.target.value)} />
-              </FormField>
-              <FormField htmlFor="moneda-venta" label="¿En qué moneda pagó?">
-                <Select id="moneda-venta" value={monedaId} onChange={(e) => setMonedaId(e.target.value)}>
-                  {monedas.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.esBase ? `${m.codigo} (oficial)` : m.codigo}
-                    </option>
-                  ))}
-                </Select>
-              </FormField>
+            {(formaCobro === "CREDITO_CLIENTE" || formaCobro === "EFECTIVO") && (
+              <div className="mt-2 flex flex-col gap-3 border-t border-outline-variant pt-3">
+                {formaCobro === "CREDITO_CLIENTE" && (
+                  <FormField htmlFor="cliente-venta" label="Cliente (requerido)" error={clienteError ?? undefined}>
+                    <Input id="cliente-venta" value={cliente} onChange={(e) => setCliente(e.target.value)} />
+                  </FormField>
+                )}
 
-              {/* El carrito/subtotal/total de arriba SIEMPRE quedan en la
-                  moneda oficial — elegir otra acá no los cambia, solo abre
-                  este panel para anotar cuánto entró en esa moneda (Story
-                  rediseño Caja multimoneda). La cotización se precarga con la
-                  última cargada (TasaCambio) pero es editable porque varía
-                  día a día; al registrar, esa cotización pasa a ser la nueva
-                  "vigente" en la tarjeta de esa moneda en Caja. */}
-              {esMonedaForanea && (
-                <Card className="flex flex-col gap-2 border-tertiary/40 bg-tertiary-container/10 p-3">
-                  <FormField
-                    htmlFor="cotizacion-venta"
-                    label={`Cotización de hoy (1 ${monedaSeleccionada?.codigo} en ${codigoMonedaBase})`}
-                  >
-                    <Input
-                      id="cotizacion-venta"
-                      value={cotizacion}
-                      onChange={(e) => onCotizacionChange(e.target.value)}
-                      className="w-28"
-                    />
-                  </FormField>
-                  <FormField htmlFor="monto-recibido-venta" label={`Recibiste en ${monedaSeleccionada?.codigo}`}>
-                    <Input
-                      id="monto-recibido-venta"
-                      value={montoRecibido}
-                      onChange={(e) => setMontoRecibido(e.target.value)}
-                      className="w-28"
-                    />
-                  </FormField>
-                  <p className="text-label-md text-on-surface-variant">
-                    Se calcula solo: {formatearMonto(total, codigoMonedaBase)} ÷ cotización — ajustalo si el cliente
-                    redondeó. Se acredita en la cuenta de {monedaSeleccionada?.codigo}, nunca en la de{" "}
-                    {codigoMonedaBase}.
-                  </p>
-                </Card>
-              )}
-            </div>
+                {formaCobro === "EFECTIVO" && (
+                  <>
+                    <FormField htmlFor="moneda-venta" label="¿En qué moneda pagó?">
+                      <Select id="moneda-venta" value={monedaId} onChange={(e) => setMonedaId(e.target.value)}>
+                        {monedas.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.esBase ? `${m.codigo} (oficial)` : m.codigo}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormField>
+
+                    {/* El carrito/subtotal/total de arriba SIEMPRE quedan en la
+                        moneda oficial — elegir otra acá no los cambia, solo abre
+                        este panel para anotar cuánto entró en esa moneda (Story
+                        rediseño Caja multimoneda). La cotización se precarga con la
+                        última cargada (TasaCambio) pero es editable porque varía
+                        día a día; al registrar, esa cotización pasa a ser la nueva
+                        "vigente" en la tarjeta de esa moneda en Caja. */}
+                    {esMonedaForanea && (
+                      <Card className="flex flex-col gap-2 border-tertiary/40 bg-tertiary-container/10 p-3">
+                        <FormField
+                          htmlFor="cotizacion-venta"
+                          label={`Cotización de hoy (1 ${monedaSeleccionada?.codigo} en ${codigoMonedaBase})`}
+                        >
+                          <Input
+                            id="cotizacion-venta"
+                            value={cotizacion}
+                            onChange={(e) => onCotizacionChange(e.target.value)}
+                            className="w-28"
+                          />
+                        </FormField>
+                        <FormField htmlFor="monto-recibido-venta" label={`Recibiste en ${monedaSeleccionada?.codigo}`}>
+                          <Input
+                            id="monto-recibido-venta"
+                            value={montoRecibido}
+                            onChange={(e) => setMontoRecibido(e.target.value)}
+                            className="w-28"
+                          />
+                        </FormField>
+                        <p className="text-label-md text-on-surface-variant">
+                          Se calcula solo: {formatearMonto(total, codigoMonedaBase)} ÷ cotización — ajustalo si el
+                          cliente redondeó. Se acredita en la cuenta de {monedaSeleccionada?.codigo}, nunca en la de{" "}
+                          {codigoMonedaBase}.
+                        </p>
+                      </Card>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </Card>
 
         {/* Métodos de cobro — mismo bento 2x2 que Stitch, mapeado 1:1 a
             nuestro dominio `formaCobro` (EFECTIVO/TARJETA/BANCO/CREDITO_CLIENTE).
-            Solo Transferencia despliega el selector de cuenta: Efectivo y
-            Tarjeta ya tienen una cuenta preasignada (ver `cargar`) sin
-            pedirle al usuario que la elija — nunca hubo más de una caja
-            registradora ni más de una cuenta receptora de tarjeta en la
-            práctica, así que preguntar ahí era ruido. Transferencia sí
-            puede ir a bancos distintos, por eso es la única que pregunta. */}
+            Transferencia y Tarjeta preguntan a qué cuenta (caja/banco) entra
+            el dinero — a pedido, puede ir a cuentas distintas en cada caso.
+            Efectivo no pregunta cuenta (siempre la caja de la moneda
+            elegida arriba) y Crédito tampoco (no entra dinero todavía). */}
         <div className="flex flex-col gap-2">
           {/* Botones más chicos y horizontales en mobile/tablet (a pedido) —
               apilado grande (ícono arriba, texto abajo) recién desde `lg`,
@@ -912,16 +915,21 @@ export function RegistrarVentaForm({
             ))}
           </div>
 
-          {formaCobro === "BANCO" && (
+          {(formaCobro === "BANCO" || formaCobro === "TARJETA") && (
             <Card className="flex flex-col gap-2 border-secondary/40 bg-secondary-container/20 p-3">
               {(() => {
                 const candidatas = cuentasCajaYBanco.filter((c) => c.monedaId === monedaId);
                 return candidatas.length === 0 ? (
                   <p className="text-label-md text-warning-text">
-                    No hay cuentas de banco en {monedaSeleccionada?.codigo ?? "esa moneda"} — creá una en Caja.
+                    No hay cuentas en {monedaSeleccionada?.codigo ?? "esa moneda"} — creá una en Caja.
                   </p>
                 ) : (
-                  <FormField htmlFor="cuenta-financiera-venta" label="¿A qué cuenta entra la transferencia?">
+                  <FormField
+                    htmlFor="cuenta-financiera-venta"
+                    label={
+                      formaCobro === "BANCO" ? "¿A qué cuenta entra la transferencia?" : "¿A qué cuenta entra el pago con tarjeta?"
+                    }
+                  >
                     <Select
                       id="cuenta-financiera-venta"
                       value={cuentaFinancieraId}
