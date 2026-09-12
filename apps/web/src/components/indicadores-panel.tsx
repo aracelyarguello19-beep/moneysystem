@@ -128,7 +128,7 @@ export function IndicadoresPanel({ negocioId }: { negocioId: string }) {
               spotlight
               tone="primary"
               icon={<Icon name="account_balance_wallet" fill />}
-              label="Valor total del negocio"
+              label="Valor total en caja"
               value={v(formatearMonto(data.valorTotalCajaGs))}
             />
           )}
