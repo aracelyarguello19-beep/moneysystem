@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { registrarVentaSchema } from "./venta";
+import { registrarVentaSchema, ventaItemInputSchema } from "./venta";
 
 const itemId = "11111111-1111-1111-1111-111111111111";
 const monedaId = "22222222-2222-2222-2222-222222222222";
@@ -66,6 +66,35 @@ describe("registrarVentaSchema", () => {
       tasaCambioId: null,
       cuentaFinancieraId,
       items: [baseItem],
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("ventaItemInputSchema", () => {
+  it("acepta una línea venta libre con cotizacionProveedor (cuenta del proveedor en moneda extranjera)", () => {
+    const result = ventaItemInputSchema.safeParse({
+      itemId,
+      cantidad: "1",
+      precioUnitario: "100.00",
+      esLibre: true,
+      costoUnitario: "75",
+      formaPagoProveedor: "EFECTIVO",
+      cuentaFinancieraProveedorId: cuentaFinancieraId,
+      cotizacionProveedor: "1400",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("acepta una línea venta libre sin cotizacionProveedor (cuenta del proveedor en la moneda oficial)", () => {
+    const result = ventaItemInputSchema.safeParse({
+      itemId,
+      cantidad: "1",
+      precioUnitario: "100.00",
+      esLibre: true,
+      costoUnitario: "50000",
+      formaPagoProveedor: "EFECTIVO",
+      cuentaFinancieraProveedorId: cuentaFinancieraId,
     });
     expect(result.success).toBe(true);
   });

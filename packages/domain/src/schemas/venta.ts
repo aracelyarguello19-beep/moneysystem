@@ -22,6 +22,12 @@ export const ventaItemInputSchema = z
     costoUnitario: decimalStringSchema.optional(),
     formaPagoProveedor: z.enum(["EFECTIVO", "BANCO", "TARJETA", "CREDITO_PROVEEDOR"]).optional(),
     cuentaFinancieraProveedorId: z.string().uuid().nullable().optional(),
+    // Cotización del día para pagarle al proveedor cuando la cuenta elegida
+    // (`cuentaFinancieraProveedorId`) es de una moneda distinta a la oficial
+    // — acá no se sabe todavía cuál es esa moneda (no hay acceso a la base),
+    // así que la obligatoriedad se valida server-side (ver registrar-venta.ts),
+    // mismo criterio que `lineaCompraSchema.cotizacion`.
+    cotizacionProveedor: decimalStringSchema.optional(),
   })
   .refine((data) => !data.esLibre || data.costoUnitario !== undefined, {
     message: "El costo es obligatorio en una venta libre",

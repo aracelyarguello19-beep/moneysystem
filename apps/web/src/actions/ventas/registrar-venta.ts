@@ -11,6 +11,7 @@ import {
   assertStockSuficiente,
   calcularCostoPromedioPonderado,
   calcularTotalVenta,
+  convertirAGuaranies,
 } from "@repo/domain";
 import { registrarVentaSchema } from "@repo/domain/schemas";
 import { aplicarMovimientoCuenta, aplicarMovimientoTarjeta, withRlsContext } from "@repo/database";
@@ -23,11 +24,20 @@ interface ItemResuelto {
   cantidad: string | null;
   precioUnitario: string;
   costoServicio: string | null;
-  costoUnitario: string | null;
+  costoUnitario: string | null; // Gs — congelado para margen/indicadores (VentaItem, nunca la moneda del proveedor)
   esLibre: boolean;
   tipo: Item["tipo"];
   formaPagoProveedor?: "EFECTIVO" | "BANCO" | "TARJETA" | "CREDITO_PROVEEDOR";
   cuentaFinancieraProveedorId?: string | null;
+  // Los siguientes 3 solo aplican a una línea `esLibre` con cuenta de
+  // proveedor (no CREDITO_PROVEEDOR): el costo tal cual se tipeó, en la
+  // moneda de ESA cuenta — nunca convertido — porque es lo que realmente
+  // sale de ahí (ver bloque de `aplicarMovimientoCuenta`/`Tarjeta` más
+  // abajo). `costoUnitario` de arriba, en cambio, siempre congela el
+  // equivalente en Gs para que el margen/los indicadores no mezclen monedas.
+  costoUnitarioProveedor: string | null;
+  monedaProveedorId: string | null;
+  cotizacionProveedor: string | null; // null cuando la cuenta del proveedor es la moneda oficial
 }
 
 // AC2/AC3/AC4 completos: reducción de stock, ajuste de saldo (INGRESO) si
@@ -44,9 +54,54 @@ export const registrarVenta = withErrorHandling(
     if (!cuenta) throw new Error("No hay sesión activa");
 
     const venta = await withRlsContext(cuenta.id, negocioId, async (tx) => {
+      // Se resuelve antes que nada (no solo cuando el cliente pagó en moneda
+      // extranjera, como antes): una línea "venta libre" puede pagarle al
+      // proveedor en una moneda distinta a la del cliente, así que hace
+      // falta la base para convertir el costo de esa línea a Gs sin
+      // importar qué eligió el cliente.
+      const monedaBase = await tx.moneda.findFirstOrThrow({
+        where: { negocioId, ambito: "LABORAL", esBase: true },
+      });
+
       const itemsResueltos: ItemResuelto[] = [];
 
       for (const ventaItem of parsed.items) {
+        // Venta libre: identifica en qué moneda quedó el costo de esta
+        // línea — la de la cuenta financiera elegida para pagarle al
+        // proveedor (nunca se fuerza a la oficial, a diferencia de antes).
+        // Sin cuenta (CREDITO_PROVEEDOR) o sin forma de pago todavía, se
+        // asume la moneda oficial (no hay plata real saliendo de ningún
+        // lado que diga lo contrario).
+        let costoUnitarioGs = ventaItem.costoUnitario ?? "0";
+        let monedaProveedorId: string | null = null;
+        let cotizacionProveedor: string | null = null;
+
+        if (ventaItem.esLibre) {
+          if (ventaItem.formaPagoProveedor !== "CREDITO_PROVEEDOR" && ventaItem.cuentaFinancieraProveedorId) {
+            const cuentaProveedor = await tx.cuentaFinanciera.findUniqueOrThrow({
+              where: { id: ventaItem.cuentaFinancieraProveedorId },
+            });
+            const monedaProveedor = await tx.moneda.findUniqueOrThrow({ where: { id: cuentaProveedor.monedaId } });
+            monedaProveedorId = monedaProveedor.id;
+
+            if (!monedaProveedor.esBase) {
+              if (!ventaItem.cotizacionProveedor || Number(ventaItem.cotizacionProveedor) <= 0) {
+                throw new Error(
+                  `La cotización es obligatoria para pagarle al proveedor en ${monedaProveedor.codigo} (moneda distinta a la oficial).`
+                );
+              }
+              cotizacionProveedor = ventaItem.cotizacionProveedor;
+              costoUnitarioGs = convertirAGuaranies({
+                monto: ventaItem.costoUnitario ?? "0",
+                esMonedaBase: false,
+                tasa: cotizacionProveedor,
+              });
+            }
+          } else {
+            monedaProveedorId = monedaBase.id;
+          }
+        }
+
         // Venta libre de un producto que NO está en el catálogo: no hay
         // Item que resolver — `nombreLibre` es toda la identificación que
         // existe, y nunca se crea un Item nuevo a partir de esto (pedido
@@ -60,11 +115,14 @@ export const registrarVenta = withErrorHandling(
             cantidad: ventaItem.cantidad,
             precioUnitario: ventaItem.precioUnitario,
             costoServicio: null,
-            costoUnitario: ventaItem.costoUnitario ?? "0",
+            costoUnitario: costoUnitarioGs,
             esLibre: true,
             tipo: "PRODUCTO",
             formaPagoProveedor: ventaItem.formaPagoProveedor,
             cuentaFinancieraProveedorId: ventaItem.cuentaFinancieraProveedorId,
+            costoUnitarioProveedor: ventaItem.costoUnitario ?? "0",
+            monedaProveedorId,
+            cotizacionProveedor,
           });
           continue;
         }
@@ -83,9 +141,10 @@ export const registrarVenta = withErrorHandling(
           // vuelve a leer en vivo del catálogo (ver migración
           // 20260901200000_venta_item_costo_unitario). En una "venta libre"
           // (sobre pedido, fuera de inventario) el costo lo tipeó quien
-          // vende, no se lee del catálogo.
+          // vende, no se lee del catálogo, y siempre queda congelado en Gs
+          // aunque se haya tipeado en la moneda del proveedor.
           costoUnitario: ventaItem.esLibre
-            ? (ventaItem.costoUnitario ?? "0")
+            ? costoUnitarioGs
             : tipo === "PRODUCTO"
               ? (item.costoCompra?.toString() ?? "0")
               : null,
@@ -93,6 +152,9 @@ export const registrarVenta = withErrorHandling(
           tipo,
           formaPagoProveedor: ventaItem.formaPagoProveedor,
           cuentaFinancieraProveedorId: ventaItem.cuentaFinancieraProveedorId,
+          costoUnitarioProveedor: ventaItem.esLibre ? (ventaItem.costoUnitario ?? "0") : null,
+          monedaProveedorId,
+          cotizacionProveedor,
         });
       }
 
@@ -130,10 +192,10 @@ export const registrarVenta = withErrorHandling(
       // "vigente" que se ve en la tarjeta de esa moneda en Caja; y
       // `montoRecibido` — no el total en Gs — es lo que se acredita en la
       // cuenta financiera de esa moneda.
-      const moneda = await tx.moneda.findUniqueOrThrow({ where: { id: parsed.monedaId } });
-      const monedaBase = moneda.esBase
-        ? moneda
-        : await tx.moneda.findFirstOrThrow({ where: { negocioId, ambito: "LABORAL", esBase: true } });
+      const moneda =
+        parsed.monedaId === monedaBase.id
+          ? monedaBase
+          : await tx.moneda.findUniqueOrThrow({ where: { id: parsed.monedaId } });
       let tasaCambioId: string | null = null;
       let montoIngreso = calcularTotalVenta(itemsResueltos);
 
@@ -179,6 +241,12 @@ export const registrarVenta = withErrorHandling(
         },
       });
 
+      // Cachea la TasaCambio recién creada por moneda+cotización dentro de
+      // esta misma venta — evita insertar snapshots inmutables duplicados
+      // cuando varias líneas "venta libre" pagan al mismo proveedor con la
+      // misma cuenta/cotización (mismo criterio que registrar-compra.ts).
+      const tasaProveedorCreadaPorClave = new Map<string, string>();
+
       for (const vi of itemsResueltos) {
         // Una línea "venta libre" nunca toca stock — es sobre pedido, no
         // sale del inventario propio (ver Story rediseño Ventas/Inventario).
@@ -190,8 +258,27 @@ export const registrarVenta = withErrorHandling(
         }
 
         if (vi.esLibre && vi.tipo === "PRODUCTO") {
-          const montoCompra = new Prisma.Decimal(vi.costoUnitario ?? "0").times(vi.cantidad ?? "1").toString();
+          // Crudo, en la moneda de la cuenta del proveedor (o la oficial si
+          // no hay cuenta) — es lo que sale de ESA cuenta, nunca convertido
+          // a Gs (ver `aplicarMovimientoCuenta`/`Tarjeta` más abajo).
+          const montoCompra = new Prisma.Decimal(vi.costoUnitarioProveedor ?? "0")
+            .times(vi.cantidad ?? "1")
+            .toString();
           let compraId: string | null = null;
+          let tasaCambioProveedorId: string | null = null;
+
+          if (vi.cotizacionProveedor && vi.monedaProveedorId) {
+            const clave = `${vi.monedaProveedorId}:${vi.cotizacionProveedor}`;
+            let idCacheado = tasaProveedorCreadaPorClave.get(clave);
+            if (!idCacheado) {
+              const tasaCambio = await tx.tasaCambio.create({
+                data: { monedaId: vi.monedaProveedorId, tasa: vi.cotizacionProveedor, registradaPor: cuenta.id },
+              });
+              idCacheado = tasaCambio.id;
+              tasaProveedorCreadaPorClave.set(clave, idCacheado);
+            }
+            tasaCambioProveedorId = idCacheado;
+          }
 
           // Solo se registra como Compra (afectaInventario: false, ajusta
           // el costo promedio) cuando el producto elegido SÍ está en el
@@ -199,6 +286,9 @@ export const registrarVenta = withErrorHandling(
           // Item detrás, así que no hay nada que actualizar ahí.
           if (vi.itemId) {
             const itemCatalogo = await tx.item.findUniqueOrThrow({ where: { id: vi.itemId } });
+            // El promedio ponderado del catálogo vive siempre en Gs — usa el
+            // costo YA convertido (`vi.costoUnitario`), nunca el crudo en la
+            // moneda del proveedor (mismo criterio que registrar-compra.ts).
             const nuevoCostoCompra = calcularCostoPromedioPonderado(
               itemCatalogo.stockActual.toString(),
               itemCatalogo.costoCompra?.toString() ?? null,
@@ -215,13 +305,17 @@ export const registrarVenta = withErrorHandling(
                 negocioId,
                 cuentaId: cuenta.id,
                 itemId: vi.itemId,
-                costoUnitario: vi.costoUnitario ?? "0",
+                // Crudo, en la moneda real en la que se le pagó al
+                // proveedor — junto con `monedaId`/`tasaCambioId` de abajo,
+                // deja ese costo trazable en su propia moneda (no forzado a
+                // Gs como antes).
+                costoUnitario: vi.costoUnitarioProveedor ?? "0",
                 cantidad: vi.cantidad ?? "1",
                 fecha: new Date(),
                 formaPago: vi.formaPagoProveedor ?? "CREDITO_PROVEEDOR",
                 cuentaFinancieraId: vi.cuentaFinancieraProveedorId ?? null,
-                monedaId: monedaBase.id,
-                tasaCambioId: null,
+                monedaId: vi.monedaProveedorId ?? monedaBase.id,
+                tasaCambioId: tasaCambioProveedorId,
                 afectaInventario: false,
               },
             });
@@ -232,7 +326,10 @@ export const registrarVenta = withErrorHandling(
           // costo de la venta libre queda "flotando" sin ledger, y la caja
           // termina con plata de más (pedido explícito: registrar la
           // salida para que no sobre dinero cuando después entre el cobro
-          // de la venta al cliente).
+          // de la venta al cliente). Se debita de la cuenta elegida EN SU
+          // PROPIA MONEDA — pagar 75 BRL sale de la caja de BRL por 75, no
+          // de un equivalente en Gs, para que ese saldo en BRL quede
+          // correcto sin conversiones silenciosas.
           if (
             vi.formaPagoProveedor &&
             vi.formaPagoProveedor !== "CREDITO_PROVEEDOR" &&
@@ -241,9 +338,6 @@ export const registrarVenta = withErrorHandling(
             const cuentaProveedor = await tx.cuentaFinanciera.findUniqueOrThrow({
               where: { id: vi.cuentaFinancieraProveedorId },
             });
-            if (cuentaProveedor.monedaId !== monedaBase.id) {
-              throw new Error("La cuenta de pago al proveedor debe ser de la moneda oficial del sistema.");
-            }
 
             if (vi.formaPagoProveedor === "TARJETA") {
               assertCuentaFinancieraEsTarjeta({ tipo: cuentaProveedor.tipo as CuentaFinanciera["tipo"] });

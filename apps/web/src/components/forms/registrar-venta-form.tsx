@@ -56,9 +56,10 @@ interface Linea {
   precioUnitario: string;
   costoServicio: string;
   esLibre: boolean;
-  costoUnitario: string; // solo aplica cuando esLibre
+  costoUnitario: string; // solo aplica cuando esLibre — en la moneda de `cuentaFinancieraProveedorId`
   formaPagoProveedor?: FormaPagoProveedor; // solo aplica cuando esLibre
   cuentaFinancieraProveedorId?: string; // solo aplica cuando esLibre
+  cotizacionProveedor?: string; // solo cuando la cuenta del proveedor es una moneda distinta a la oficial
 }
 
 function formatearMargen(margen: string): string {
@@ -156,6 +157,7 @@ export function RegistrarVentaForm({
   const [libreCantidad, setLibreCantidad] = useState("1");
   const [libreFormaPago, setLibreFormaPago] = useState<FormaPagoProveedor>("EFECTIVO");
   const [libreCuentaProveedorId, setLibreCuentaProveedorId] = useState("");
+  const [libreCotizacionProveedor, setLibreCotizacionProveedor] = useState("");
 
   const cargar = useCallback(async () => {
     // Las 4 en paralelo (no importa el orden en que terminen) — esta
@@ -226,6 +228,27 @@ export function RegistrarVentaForm({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monedaId, esMonedaForanea]);
+
+  // Cuenta/moneda elegida para pagarle al proveedor en "venta libre" — a
+  // diferencia de antes, puede ser cualquier moneda activa (no solo la
+  // oficial): el costo de compra que se tipea abajo queda en ESA moneda, y
+  // es lo que se debita de esa cuenta puntual al registrar la venta (nunca
+  // convertido a Gs). Precarga la cotización vigente igual que la moneda del
+  // cliente, arriba, pero de forma independiente — pueden ser dos monedas
+  // distintas en la misma venta (ej. cliente paga en Gs, proveedor cobró en
+  // BRL).
+  const cuentaProveedorSeleccionada = cuentasFinancieras.find((c) => c.id === libreCuentaProveedorId);
+  const monedaProveedorSeleccionada = monedas.find((m) => m.id === cuentaProveedorSeleccionada?.monedaId);
+  const libreEsMonedaForanea = !!monedaProveedorSeleccionada && !monedaProveedorSeleccionada.esBase;
+
+  useEffect(() => {
+    if (!libreEsMonedaForanea) {
+      setLibreCotizacionProveedor("");
+      return;
+    }
+    setLibreCotizacionProveedor(tasas.find((t) => t.moneda.id === monedaProveedorSeleccionada?.id)?.tasaVigente?.tasa ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [libreCuentaProveedorId, libreEsMonedaForanea]);
 
   function onCotizacionChange(valor: string) {
     setCotizacion(valor);
@@ -298,7 +321,8 @@ export function RegistrarVentaForm({
     libreCantidad &&
     libreCosto &&
     librePrecio &&
-    (libreFormaPago === "CREDITO_PROVEEDOR" || !!libreCuentaProveedorId);
+    (libreFormaPago === "CREDITO_PROVEEDOR" || !!libreCuentaProveedorId) &&
+    (!libreEsMonedaForanea || (!!libreCotizacionProveedor && Number(libreCotizacionProveedor) > 0));
 
   function agregarVentaLibre() {
     if (!libreListoParaAgregar) return;
@@ -316,6 +340,7 @@ export function RegistrarVentaForm({
         formaPagoProveedor: libreFormaPago,
         cuentaFinancieraProveedorId:
           libreFormaPago === "CREDITO_PROVEEDOR" ? undefined : libreCuentaProveedorId,
+        cotizacionProveedor: libreEsMonedaForanea ? libreCotizacionProveedor : undefined,
       },
     ]);
     setLibreAbierta(false);
@@ -326,6 +351,7 @@ export function RegistrarVentaForm({
     setLibreCantidad("1");
     setLibreFormaPago("EFECTIVO");
     setLibreCuentaProveedorId("");
+    setLibreCotizacionProveedor("");
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -367,6 +393,7 @@ export function RegistrarVentaForm({
         costoUnitario: l.esLibre ? l.costoUnitario : undefined,
         formaPagoProveedor: l.esLibre ? l.formaPagoProveedor : undefined,
         cuentaFinancieraProveedorId: l.esLibre ? l.cuentaFinancieraProveedorId ?? null : undefined,
+        cotizacionProveedor: l.esLibre ? l.cotizacionProveedor : undefined,
       })),
     });
     setIsSubmitting(false);
@@ -436,31 +463,13 @@ export function RegistrarVentaForm({
                   onSeleccionar={(item) => setLibreItemId(item?.id ?? null)}
                 />
               </FormField>
-              <FormField htmlFor="libre-cantidad" label="Cantidad">
-                <Input
-                  id="libre-cantidad"
-                  value={libreCantidad}
-                  onChange={(e) => setLibreCantidad(e.target.value)}
-                  className="w-20"
-                />
-              </FormField>
-              <FormField htmlFor="libre-costo" label="Costo de compra">
-                <Input
-                  id="libre-costo"
-                  value={libreCosto}
-                  onChange={(e) => setLibreCosto(e.target.value)}
-                  className="w-28"
-                />
-              </FormField>
-              <FormField htmlFor="libre-precio" label="Precio de venta">
-                <Input
-                  id="libre-precio"
-                  value={librePrecio}
-                  onChange={(e) => setLibrePrecio(e.target.value)}
-                  className="w-28"
-                />
-              </FormField>
             </div>
+            {/* Forma de pago primero (a pedido): define con qué cuenta —
+                y por lo tanto en qué moneda — se le pagó al proveedor,
+                ANTES de tipear el costo. Elegir una cuenta en una moneda
+                distinta a la oficial (ej. Efectivo en BRL) hace que el
+                campo "Costo de compra" de abajo pase a pedirse en esa
+                misma moneda. */}
             <div className="flex flex-wrap items-end gap-2 border-t border-outline-variant pt-3">
               <FormField htmlFor="libre-forma-pago" label="¿Cómo le pagaste al proveedor?">
                 <Select
@@ -490,13 +499,59 @@ export function RegistrarVentaForm({
                   label="¿Con qué cuenta?"
                 />
               )}
+              {libreEsMonedaForanea && (
+                <FormField
+                  htmlFor="libre-cotizacion-proveedor"
+                  label={`Cotización de hoy (1 ${monedaProveedorSeleccionada?.codigo} en ${codigoMonedaBase})`}
+                >
+                  <Input
+                    id="libre-cotizacion-proveedor"
+                    value={libreCotizacionProveedor}
+                    onChange={(e) => setLibreCotizacionProveedor(e.target.value)}
+                    inputMode="decimal"
+                    className="w-28"
+                  />
+                </FormField>
+              )}
+            </div>
+            <div className="flex flex-wrap items-end gap-2 border-t border-outline-variant pt-3">
+              <FormField htmlFor="libre-cantidad" label="Cantidad">
+                <Input
+                  id="libre-cantidad"
+                  value={libreCantidad}
+                  onChange={(e) => setLibreCantidad(e.target.value)}
+                  className="w-20"
+                />
+              </FormField>
+              <FormField
+                htmlFor="libre-costo"
+                label={`Costo de compra${monedaProveedorSeleccionada ? ` (${monedaProveedorSeleccionada.codigo})` : ""}`}
+              >
+                <Input
+                  id="libre-costo"
+                  value={libreCosto}
+                  onChange={(e) => setLibreCosto(e.target.value)}
+                  inputMode="decimal"
+                  className="w-28"
+                />
+              </FormField>
+              <FormField htmlFor="libre-precio" label={`Precio de venta${codigoMonedaBase ? ` (${codigoMonedaBase})` : ""}`}>
+                <Input
+                  id="libre-precio"
+                  value={librePrecio}
+                  onChange={(e) => setLibrePrecio(e.target.value)}
+                  inputMode="decimal"
+                  className="w-28"
+                />
+              </FormField>
               <Button type="button" size="sm" disabled={!libreListoParaAgregar} onClick={agregarVentaLibre}>
                 Agregar a la venta
               </Button>
             </div>
             <p className="text-label-md text-on-surface-variant">
-              Esa plata sale de la cuenta elegida en el momento — cuando registrés la venta, vuelve a entrar
-              con el cobro al cliente.
+              Al registrar la venta, ese costo se debita de la cuenta elegida
+              {monedaProveedorSeleccionada ? ` en ${monedaProveedorSeleccionada.codigo}` : ""} — y vuelve a
+              entrar con el cobro al cliente.
             </p>
           </Card>
         )}
@@ -692,6 +747,14 @@ export function RegistrarVentaForm({
               const lineaTotal = new Decimal(linea.precioUnitario || "0")
                 .times(linea.cantidad || "1")
                 .toString();
+              // Moneda en la que quedó el costo de ESTA línea — la de la
+              // cuenta que se eligió al agregarla (puede diferir entre
+              // líneas de la misma venta), no siempre la oficial.
+              const cuentaProveedorLinea = cuentasFinancieras.find(
+                (c) => c.id === linea.cuentaFinancieraProveedorId
+              );
+              const monedaProveedorLinea = monedas.find((m) => m.id === cuentaProveedorLinea?.monedaId);
+              const lineaEsMonedaForanea = !!monedaProveedorLinea && !monedaProveedorLinea.esBase;
 
               return (
                 <div key={linea.id} className="flex flex-col gap-2 px-4 py-3">
@@ -719,13 +782,30 @@ export function RegistrarVentaForm({
                     </button>
                   </div>
                   {linea.esLibre && (
-                    <Input
-                      aria-label="Costo de compra"
-                      value={linea.costoUnitario}
-                      onChange={(e) => actualizarLinea(linea.id, { costoUnitario: e.target.value })}
-                      placeholder="Costo de compra"
-                      className="h-7 w-32 text-label-md"
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        aria-label={
+                          monedaProveedorLinea ? `Costo de compra (${monedaProveedorLinea.codigo})` : "Costo de compra"
+                        }
+                        value={linea.costoUnitario}
+                        onChange={(e) => actualizarLinea(linea.id, { costoUnitario: e.target.value })}
+                        placeholder={
+                          monedaProveedorLinea ? `Costo de compra (${monedaProveedorLinea.codigo})` : "Costo de compra"
+                        }
+                        inputMode="decimal"
+                        className="h-7 w-32 text-label-md"
+                      />
+                      {lineaEsMonedaForanea && (
+                        <Input
+                          aria-label={`Cotización (1 ${monedaProveedorLinea?.codigo} en ${codigoMonedaBase})`}
+                          value={linea.cotizacionProveedor ?? ""}
+                          onChange={(e) => actualizarLinea(linea.id, { cotizacionProveedor: e.target.value })}
+                          placeholder="Cotización"
+                          inputMode="decimal"
+                          className="h-7 w-24 text-label-md"
+                        />
+                      )}
+                    </div>
                   )}
                   {item?.tipo === "SERVICIO" && (
                     <Input
