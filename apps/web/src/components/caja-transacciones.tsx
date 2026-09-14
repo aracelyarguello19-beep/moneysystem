@@ -15,6 +15,8 @@ const ETIQUETA_REFERENCIA: Record<string, string> = {
   GASTO: "Gasto",
   PAGO_CXC: "Cobro cuenta por cobrar",
   MANUAL: "Movimiento manual",
+  COMPRA_MONEDA: "Compra de moneda",
+  TRANSFERENCIA: "Transferencia entre cuentas",
 };
 
 // Tabla "Transacciones Recientes" — mismo patrón que "Gestión de Caja

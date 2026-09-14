@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   agruparSaldosPorMoneda,
+  assertCuentaFinancieraEsCaja,
   assertCuentaFinancieraEsTarjeta,
   assertCuentaFinancieraNoEsTarjeta,
   CuentaFinancieraTipoInvalidoError,
@@ -95,5 +96,16 @@ describe("assertCuentaFinancieraNoEsTarjeta", () => {
     expect(() => assertCuentaFinancieraNoEsTarjeta({ tipo: "TARJETA" })).toThrow(
       CuentaFinancieraTipoInvalidoError
     );
+  });
+});
+
+describe("assertCuentaFinancieraEsCaja", () => {
+  it("no lanza para CAJA", () => {
+    expect(() => assertCuentaFinancieraEsCaja({ tipo: "CAJA" })).not.toThrow();
+  });
+
+  it("lanza para BANCO/TARJETA", () => {
+    expect(() => assertCuentaFinancieraEsCaja({ tipo: "BANCO" })).toThrow(CuentaFinancieraTipoInvalidoError);
+    expect(() => assertCuentaFinancieraEsCaja({ tipo: "TARJETA" })).toThrow(CuentaFinancieraTipoInvalidoError);
   });
 });

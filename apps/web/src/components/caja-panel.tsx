@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Decimal from "decimal.js";
 import type { CuentaFinanciera, Moneda, TipoGasto } from "@repo/domain";
 import { crearCuentaFinanciera } from "@/actions/cuentas-financieras/crear-cuenta-financiera";
 import { editarCuentaFinanciera } from "@/actions/cuentas-financieras/editar-cuenta-financiera";
 import { eliminarCuentaFinanciera } from "@/actions/cuentas-financieras/eliminar-cuenta-financiera";
 import { obtenerCajaPageData } from "@/actions/cuentas-financieras/obtener-caja-page-data";
 import { registrarMovimientoManual } from "@/actions/cuentas-financieras/registrar-movimiento-manual";
+import { comprarMoneda } from "@/actions/cuentas-financieras/comprar-moneda";
+import { transferirEntreCuentas } from "@/actions/cuentas-financieras/transferir-entre-cuentas";
 import { registrarPagoResumenTarjeta } from "@/actions/gastos/registrar-pago-resumen-tarjeta";
 import { registrarInteresTarjeta } from "@/actions/gastos/registrar-interes-tarjeta";
 import type { MonedaConTasa } from "@/actions/catalogos/listar-tasas-cambio";
@@ -332,6 +335,7 @@ export function CajaPanel({ negocioId }: { negocioId: string }) {
               <CuentaCard
                 key={c.id}
                 cuenta={c}
+                cuentas={cuentas}
                 negocioId={negocioId}
                 monedas={monedas}
                 tasas={tasas}
@@ -349,6 +353,7 @@ export function CajaPanel({ negocioId }: { negocioId: string }) {
 
 function CuentaCard({
   cuenta,
+  cuentas,
   negocioId,
   monedas,
   tasas,
@@ -357,6 +362,10 @@ function CuentaCard({
   onCambio,
 }: {
   cuenta: CuentaFinanciera;
+  /** Todas las cuentas del negocio — hace falta para ofrecer, en "Comprar",
+      con qué Efectivo en Gs se paga, y en "Transferir", a qué otra cuenta
+      de la misma moneda. */
+  cuentas: CuentaFinanciera[];
   negocioId: string;
   monedas: Moneda[];
   tasas: MonedaConTasa[];
@@ -370,12 +379,34 @@ function CuentaCard({
   const indiceMoneda = monedas.findIndex((m) => m.id === cuenta.monedaId);
   const esCaja = cuenta.tipo === "CAJA";
   const tasaVigente = tasas.find((t) => t.moneda.id === cuenta.monedaId)?.tasaVigente ?? null;
+  const monedaBase = monedas.find((m) => m.esBase);
 
   const [agregandoMonto, setAgregandoMonto] = useState(false);
   const [monto, setMonto] = useState("");
   const [tipoAjuste, setTipoAjuste] = useState<"INGRESO" | "EGRESO">("INGRESO");
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
+
+  // "Comprar" (solo Efectivo en moneda extranjera): paga con un Efectivo en
+  // Gs — la cotización se precarga con la vigente que ya muestra la
+  // tarjeta, pero es editable; si se cambia acá, esa pasa a ser la nueva
+  // vigente del sistema para esta moneda (mismo snapshot inmutable de
+  // TasaCambio que usan Ventas/Compras).
+  const cajasPyg = cuentas.filter((c) => c.tipo === "CAJA" && c.monedaId === monedaBase?.id);
+  const [comprando, setComprando] = useState(false);
+  const [montoComprado, setMontoComprado] = useState("");
+  const [cotizacionCompra, setCotizacionCompra] = useState("");
+  const [cuentaOrigenCompraId, setCuentaOrigenCompraId] = useState("");
+
+  // "Transferir" (Efectivo/Banco en la moneda oficial): solo entre cuentas
+  // de la MISMA moneda que esta — nunca convierte (para eso está
+  // "Comprar" en la tarjeta de la moneda extranjera).
+  const candidatasTransferencia = cuentas.filter(
+    (c) => (c.tipo === "CAJA" || c.tipo === "BANCO") && c.monedaId === cuenta.monedaId && c.id !== cuenta.id
+  );
+  const [transfiriendo, setTransfiriendo] = useState(false);
+  const [montoTransferido, setMontoTransferido] = useState("");
+  const [cuentaDestinoTransferId, setCuentaDestinoTransferId] = useState("");
 
   const [editando, setEditando] = useState(false);
   const [nombreEditado, setNombreEditado] = useState(cuenta.nombre);
@@ -399,6 +430,63 @@ function CuentaCard({
     setMonto("");
     setTipoAjuste("INGRESO");
     setAgregandoMonto(false);
+    onCambio();
+    emitirInventarioCambiado();
+  }
+
+  function abrirComprar() {
+    setMensaje(null);
+    setMontoComprado("");
+    setCotizacionCompra(tasaVigente?.tasa ?? "");
+    setCuentaOrigenCompraId((actual) => (cajasPyg.some((c) => c.id === actual) ? actual : cajasPyg[0]?.id ?? ""));
+    setComprando(true);
+  }
+
+  async function onComprar(e: React.FormEvent) {
+    e.preventDefault();
+    setMensaje(null);
+    setEnviando(true);
+    const result = await comprarMoneda(negocioId, {
+      cuentaFinancieraOrigenId: cuentaOrigenCompraId,
+      cuentaFinancieraDestinoId: cuenta.id,
+      monto: montoComprado,
+      cotizacion: cotizacionCompra,
+    });
+    setEnviando(false);
+    if (!result.ok) {
+      setMensaje(result.error.message);
+      return;
+    }
+    setMontoComprado("");
+    setCotizacionCompra("");
+    setComprando(false);
+    onCambio();
+    emitirInventarioCambiado();
+  }
+
+  function abrirTransferir() {
+    setMensaje(null);
+    setMontoTransferido("");
+    setCuentaDestinoTransferId(candidatasTransferencia[0]?.id ?? "");
+    setTransfiriendo(true);
+  }
+
+  async function onTransferir(e: React.FormEvent) {
+    e.preventDefault();
+    setMensaje(null);
+    setEnviando(true);
+    const result = await transferirEntreCuentas(negocioId, {
+      cuentaFinancieraOrigenId: cuenta.id,
+      cuentaFinancieraDestinoId: cuentaDestinoTransferId,
+      monto: montoTransferido,
+    });
+    setEnviando(false);
+    if (!result.ok) {
+      setMensaje(result.error.message);
+      return;
+    }
+    setMontoTransferido("");
+    setTransfiriendo(false);
     onCambio();
     emitirInventarioCambiado();
   }
@@ -511,16 +599,38 @@ function CuentaCard({
         </div>
       )}
 
-      {!agregandoMonto ? (
-        <button
-          type="button"
-          onClick={() => setAgregandoMonto(true)}
-          className="flex items-center gap-1 self-start text-label-md text-tertiary hover:underline"
-        >
-          <Icon name="add" className="text-[14px]" />
-          Ajustar saldo
-        </button>
-      ) : (
+      {!agregandoMonto && !comprando && !transfiriendo ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setAgregandoMonto(true)}
+            className="flex items-center gap-1 self-start text-label-md text-tertiary hover:underline"
+          >
+            <Icon name="add" className="text-[14px]" />
+            Ajustar saldo
+          </button>
+          {esCaja && esExtranjera && (
+            <button
+              type="button"
+              onClick={abrirComprar}
+              className="flex items-center gap-1 self-start text-label-md text-tertiary hover:underline"
+            >
+              <Icon name="currency_exchange" className="text-[14px]" />
+              Comprar
+            </button>
+          )}
+          {(cuenta.tipo === "CAJA" || cuenta.tipo === "BANCO") && !esExtranjera && (
+            <button
+              type="button"
+              onClick={abrirTransferir}
+              className="flex items-center gap-1 self-start text-label-md text-tertiary hover:underline"
+            >
+              <Icon name="sync_alt" className="text-[14px]" />
+              Transferir
+            </button>
+          )}
+        </div>
+      ) : agregandoMonto ? (
         <form onSubmit={onAgregar} className="flex items-center gap-1">
           <Select
             aria-label={`Tipo de ajuste para ${cuenta.nombre}`}
@@ -545,6 +655,130 @@ function CuentaCard({
           <Button type="button" size="sm" variant="ghost" onClick={() => setAgregandoMonto(false)} className="h-7 px-2">
             <Icon name="close" className="text-[14px]" />
           </Button>
+        </form>
+      ) : comprando ? (
+        // Compra de esta moneda con un Efectivo en Gs — el monto va en la
+        // moneda de ESTA tarjeta (ej. R$), la cotización decide cuánto se
+        // debita del Efectivo en Gs elegido abajo (preview en vivo).
+        <form onSubmit={onComprar} className="flex flex-col gap-2 border-t border-outline-variant pt-2">
+          {cajasPyg.length === 0 ? (
+            <p className="text-label-md text-warning-text">
+              No hay ninguna cuenta de Efectivo en {monedaBase?.codigo ?? "la moneda oficial"} para pagar la
+              compra — creá una en Caja.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-1">
+                <Input
+                  aria-label={`Monto de ${codigoMoneda} a comprar`}
+                  value={montoComprado}
+                  onChange={(e) => setMontoComprado(e.target.value)}
+                  placeholder={`Monto en ${codigoMoneda}`}
+                  inputMode="decimal"
+                  autoFocus
+                  className="h-7 w-24 text-label-md"
+                />
+                <Input
+                  aria-label={`Cotización de ${codigoMoneda} para esta compra`}
+                  value={cotizacionCompra}
+                  onChange={(e) => setCotizacionCompra(e.target.value)}
+                  placeholder="Cotización"
+                  inputMode="decimal"
+                  className="h-7 w-20 text-label-md"
+                />
+              </div>
+              {cajasPyg.length > 1 && (
+                <Select
+                  aria-label="Pagar con qué Efectivo"
+                  value={cuentaOrigenCompraId}
+                  onChange={(e) => setCuentaOrigenCompraId(e.target.value)}
+                  className="h-7 text-label-md"
+                >
+                  {cajasPyg.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </Select>
+              )}
+              {Number(montoComprado) > 0 && Number(cotizacionCompra) > 0 && (
+                <p className="text-label-md text-on-surface-variant">
+                  Se debitan{" "}
+                  {formatearMonto(
+                    new Decimal(montoComprado).times(cotizacionCompra).toString(),
+                    monedaBase?.codigo
+                  )}{" "}
+                  de {cajasPyg.find((c) => c.id === cuentaOrigenCompraId)?.nombre ?? "Efectivo"}.
+                </p>
+              )}
+              <div className="flex items-center gap-1">
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="outline"
+                  disabled={enviando || !montoComprado || !cotizacionCompra || !cuentaOrigenCompraId}
+                  className="h-7 px-2"
+                >
+                  <Icon name="check" className="text-[14px]" />
+                  Confirmar compra
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setComprando(false)} className="h-7 px-2">
+                  <Icon name="close" className="text-[14px]" />
+                </Button>
+              </div>
+            </>
+          )}
+        </form>
+      ) : (
+        // Transferencia a otra cuenta propia de la MISMA moneda.
+        <form onSubmit={onTransferir} className="flex flex-col gap-2 border-t border-outline-variant pt-2">
+          {candidatasTransferencia.length === 0 ? (
+            <p className="text-label-md text-warning-text">
+              No hay otra cuenta en {codigoMoneda} para transferir — creá una en Caja.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-1">
+                <Select
+                  aria-label="Transferir a qué cuenta"
+                  value={cuentaDestinoTransferId}
+                  onChange={(e) => setCuentaDestinoTransferId(e.target.value)}
+                  className="h-7 text-label-md"
+                >
+                  {candidatasTransferencia.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                      {c.banco ? ` — ${c.banco}${c.alias ? ` (${c.alias})` : ""}` : ""}
+                    </option>
+                  ))}
+                </Select>
+                <Input
+                  aria-label={`Monto a transferir de ${cuenta.nombre}`}
+                  value={montoTransferido}
+                  onChange={(e) => setMontoTransferido(e.target.value)}
+                  placeholder="Monto"
+                  inputMode="decimal"
+                  autoFocus
+                  className="h-7 w-24 text-label-md"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="outline"
+                  disabled={enviando || !montoTransferido || !cuentaDestinoTransferId}
+                  className="h-7 px-2"
+                >
+                  <Icon name="check" className="text-[14px]" />
+                  Transferir
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setTransfiriendo(false)} className="h-7 px-2">
+                  <Icon name="close" className="text-[14px]" />
+                </Button>
+              </div>
+            </>
+          )}
         </form>
       )}
       {mensaje && (

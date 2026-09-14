@@ -81,3 +81,33 @@ export const registrarMovimientoManualSchema = z.object({
   tipo: z.enum(["INGRESO", "EGRESO"]).default("INGRESO"),
 });
 export type RegistrarMovimientoManualInput = z.infer<typeof registrarMovimientoManualSchema>;
+
+// Compra de moneda extranjera con efectivo en Gs, desde la tarjeta de una
+// cuenta CAJA extranjera (Caja) — `monto` es cuánto de esa moneda se
+// compró (ej. 100 si son R$ 100), `cotizacion` es a cuánto se compró (1
+// unidad de esa moneda = `cotizacion` Gs). La Server Action calcula `monto
+// × cotizacion` para debitar la cuenta de origen (Gs) y acredita `monto`
+// tal cual en la de destino — nunca al revés, ver comprar-moneda.ts.
+export const comprarMonedaSchema = z.object({
+  cuentaFinancieraOrigenId: z.string().uuid(),
+  cuentaFinancieraDestinoId: z.string().uuid(),
+  monto: decimalStringSchema.refine((val) => Number(val) > 0, "El monto debe ser mayor a cero"),
+  cotizacion: decimalStringSchema.refine((val) => Number(val) > 0, "La cotización debe ser mayor a cero"),
+});
+export type ComprarMonedaInput = z.infer<typeof comprarMonedaSchema>;
+
+// Transferencia entre 2 cuentas Efectivo/Banco de la MISMA moneda — nunca
+// convierte (para eso está `comprarMonedaSchema`): mover plata de una caja
+// a un banco, o entre dos bancos, en la misma moneda no cambia el total,
+// solo dónde está guardada.
+export const transferirEntreCuentasSchema = z
+  .object({
+    cuentaFinancieraOrigenId: z.string().uuid(),
+    cuentaFinancieraDestinoId: z.string().uuid(),
+    monto: decimalStringSchema.refine((val) => Number(val) > 0, "El monto debe ser mayor a cero"),
+  })
+  .refine((data) => data.cuentaFinancieraOrigenId !== data.cuentaFinancieraDestinoId, {
+    message: "Elegí una cuenta de destino distinta a la de origen",
+    path: ["cuentaFinancieraDestinoId"],
+  });
+export type TransferirEntreCuentasInput = z.infer<typeof transferirEntreCuentasSchema>;

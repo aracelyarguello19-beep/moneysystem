@@ -28,6 +28,13 @@ export type ReferenciaMovimientoCuenta =
   | "GASTO"
   | "PAGO_CXC"
   | "MANUAL"
+  // Compra de moneda extranjera con efectivo en Gs (Caja) — ver
+  // comprar-moneda.ts. `referenciaId` apunta a la OTRA cuenta del par
+  // (origen↔destino), mismo criterio que TRANSFERENCIA.
+  | "COMPRA_MONEDA"
+  // Transferencia entre 2 cuentas propias de la misma moneda — ver
+  // transferir-entre-cuentas.ts. `referenciaId` apunta a la otra punta.
+  | "TRANSFERENCIA"
   | null;
 
 // [Source: architecture/data-models.md#MovimientoTarjeta / MovimientoCuenta]
@@ -113,6 +120,15 @@ export function assertCuentaFinancieraEsTarjeta(cf: Pick<CuentaFinanciera, "tipo
 // tipo TARJETA como origen de fondos — TARJETA es un pasivo, no liquidez.
 export function assertCuentaFinancieraNoEsTarjeta(cf: Pick<CuentaFinanciera, "tipo">): void {
   if (cf.tipo === "TARJETA") {
+    throw new CuentaFinancieraTipoInvalidoError("CAJA");
+  }
+}
+
+// Comprar moneda extranjera (ver comprarMonedaSchema) es específicamente un
+// movimiento de EFECTIVO — nunca Banco/Otro — a diferencia de
+// `assertCuentaFinancieraNoEsTarjeta`, que solo excluye Tarjeta.
+export function assertCuentaFinancieraEsCaja(cf: Pick<CuentaFinanciera, "tipo">): void {
+  if (cf.tipo !== "CAJA") {
     throw new CuentaFinancieraTipoInvalidoError("CAJA");
   }
 }
